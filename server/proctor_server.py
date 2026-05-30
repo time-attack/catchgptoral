@@ -468,8 +468,16 @@ async def api_training_run_ai(payload: dict | None = None):
     """Send one simulated AI student to take the exam (no fake-human sim)."""
     payload = payload or {}
     test_id = payload.get("test_id")
-    test = get_test(test_id) if test_id else None
-    if test_id and test is None:
+    if not test_id:
+        return JSONResponse(
+            {
+                "ok": False,
+                "reason": "No uploaded test selected. Upload a packet first, then run the AI simulator for that exact test.",
+            },
+            status_code=400,
+        )
+    test = get_test(test_id)
+    if test is None:
         raise HTTPException(404, "Unknown test")
     return JSONResponse(await start_ai_run(test=test))
 

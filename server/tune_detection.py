@@ -181,6 +181,8 @@ async def labeled_from_cekura(run_id: int, http: aiohttp.ClientSession) -> list[
         if not sub.get("id"):
             continue
         detail = await fetch_subrun_detail(sub["id"], http)
+        if detail.get("result_id") != run_id:
+            continue
         transcript = detail.get("transcript_object") or detail.get("cekura_transcript_json") or []
         student_text = student_text_from_transcript(transcript)
         name = sub["scenario_name"].lower()

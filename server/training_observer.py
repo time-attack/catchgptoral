@@ -142,6 +142,8 @@ async def run_snapshot(run_id: int, http: aiohttp.ClientSession) -> dict[str, An
         if not sid:
             continue
         detail = await fetch_subrun_detail(sid, http)
+        if detail.get("result_id") != run_id:
+            continue
         transcript = detail.get("transcript_object") or detail.get("cekura_transcript_json") or []
         student_text = student_text_from_transcript(transcript)
         label = _label_for(name)
@@ -436,6 +438,8 @@ async def start_ai_run(name: str = "ai-student", test: dict[str, Any] | None = N
     body = {"scenarios": scns, "frequency": 1, "name": name}
     if session_config:
         body["session_config"] = session_config
+        for scenario in scns:
+            scenario["publish_data_message"] = session_config
     async with aiohttp.ClientSession() as http:
         async with http.post(
             f"{CEKURA_BASE}/v1/scenarios/run_scenarios_pipecat_v2/",
