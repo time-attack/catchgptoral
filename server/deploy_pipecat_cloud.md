@@ -23,14 +23,15 @@ Pipecat Cloud dashboard → Settings → API Keys → create one. This is the
 From `server/`:
 ```bash
 pc cloud secrets set catchgpt-proctor-secrets --file .env --region us-east
-pc cloud deploy                                             # builds + deploys bot.py in us-east
+pc cloud deploy --dockerfile Dockerfile.pcc                 # builds + deploys bot.py in us-east
 ```
 `pcc-deploy.toml` already names the agent `catchgpt-proctor`. The deploy entry is
 `bot.py` (reuses run_bot; questions come from the session's Agent Configuration
 JSON, with a built-in default exam fallback).
 
-The Dockerfile uses Pipecat Cloud's `dailyco/pipecat-base` image on purpose. Do
-not add a custom `CMD` for cloud deploys: the base image provides the reserved
+`Dockerfile.pcc` uses Pipecat Cloud's `dailyco/pipecat-base` image on purpose.
+Do not add `server/Dockerfile`: Railway treats that as the web app image and
+will stop using Railpack. Also do not add a custom `CMD` for cloud deploys: the base image provides the reserved
 `POST /bot` endpoint that Pipecat Cloud calls to start sessions.
 
 ## 4. Put the Pipecat Cloud creds in .env
