@@ -324,7 +324,9 @@ async def _relay_forwarder(session: ProctorSession, http: aiohttp.ClientSession)
     if not url:
         return None
     base = url.rstrip("/")
-    channel = os.getenv("LIVE_RELAY_CHANNEL", "stress")
+    from live_relay import stress_channel
+
+    channel = stress_channel(session.session_id)
     token = os.getenv("LIVE_RELAY_TOKEN")
     headers = {"Content-Type": "application/json"}
     if token:

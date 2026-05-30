@@ -350,10 +350,11 @@ function liveFinal(text){
   else { addTurn("student",text); return; }
   wCount+=(text||"").split(/\s+/).filter(Boolean).length; $("wV").textContent=wCount; $("chat").scrollTop=$("chat").scrollHeight;
 }
-function openLiveStream(){
+function openLiveStream(sessionId){
   closeLiveStream();
+  if(!sessionId) return;
   const base=(RELAY_BASE||"").replace(/\/$/,"");  // empty = same origin (works once deployed)
-  liveStream=new EventSource(base+"/api/live/stream/stress");
+  liveStream=new EventSource(base+"/api/live/stream/stress-"+encodeURIComponent(sessionId));
   liveStream.onmessage=(m)=>{
     let ev; try{ev=JSON.parse(m.data);}catch(e){return;}
     const t=ev.type;
@@ -398,8 +399,8 @@ $("stressBtn").onclick=async()=>{
   catch(e){ logLine("system","ERROR: "+e); setPill("error",false); rmThinking(); $("stressBtn").disabled=false; return; }
   if(!r.ok){ logLine("system","ERROR: "+(r.reason||"start failed")); setPill("error",false); rmThinking(); $("stressBtn").disabled=false; return; }
   $("runV").textContent="#"+r.run_id; setPill("AI student is calling…",true); setPhase("dialing");
-  logLine("cekura","Run #"+r.run_id+" created. AI cheater dispatched to the exam bot.");
-  openLiveStream();  // stream the bot's own words live (same-origin once deployed)
+  logLine("cekura","Run #"+r.run_id+" created · session "+r.session_id+". AI cheater dispatched to the exam bot.");
+  openLiveStream(r.session_id);  // per-session channel — never replays a prior stress test
   logLine("system","Watching the bot live — the transcript streams in as the AI speaks (and fills in from the recording when the call wraps).");
   curStream=new EventSource(`/api/training/stream/${r.run_id}`);
   curStream.onmessage=(m)=>{

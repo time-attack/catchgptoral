@@ -67,6 +67,7 @@ from training_observer import (
 from training_observer import (
     load_state as load_cekura_state,
 )
+from live_relay import push_event, subscribe, unsubscribe
 
 load_dotenv(override=True)
 
@@ -357,9 +358,6 @@ async def events(session_id: str):
 # real time. In-memory fan-out, no storage. No-op locally (the cloud bot can't
 # reach localhost) — the dashboard then falls back to Cekura's end-of-call data.
 
-_LIVE_CHANNELS: dict[str, set[asyncio.Queue]] = {}
-_LIVE_HISTORY: dict[str, list[dict]] = {}
-_LIVE_BACKLOG = int(os.getenv("LIVE_RELAY_BACKLOG", "300"))
 _LIVE_TOKEN = os.getenv("LIVE_RELAY_TOKEN")
 
 
@@ -369,29 +367,17 @@ async def live_push(channel: str, request: Request):
     if _LIVE_TOKEN and request.headers.get("x-relay-token") != _LIVE_TOKEN:
         raise HTTPException(403, "bad relay token")
     event = await request.json()
-    hist = _LIVE_HISTORY.setdefault(channel, [])
-    if event.get("type") == "reset":
-        _LIVE_HISTORY[channel] = [event]
-    else:
-        hist.append(event)
-        if len(hist) > _LIVE_BACKLOG:
-            del hist[: len(hist) - _LIVE_BACKLOG]
-    for q in list(_LIVE_CHANNELS.get(channel, ())):
-        try:
-            q.put_nowait(event)
-        except asyncio.QueueFull:  # pragma: no cover
-            pass
-    return {"ok": True, "subscribers": len(_LIVE_CHANNELS.get(channel, ()))}
+    subscribers = push_event(channel, event)
+    return {"ok": True, "subscribers": subscribers}
 
 
 @app.get("/api/live/stream/{channel}")
 async def live_stream(channel: str):
     """The teacher dashboard subscribes here (SSE) to watch the call word-by-word."""
-    q: asyncio.Queue = asyncio.Queue()
-    _LIVE_CHANNELS.setdefault(channel, set()).add(q)
+    q, backlog = subscribe(channel)
 
     async def gen():
-        for ev in _LIVE_HISTORY.get(channel, []):
+        for ev in backlog:
             yield f"data: {json.dumps(ev)}\n\n"
         try:
             while True:
@@ -401,7 +387,7 @@ async def live_stream(channel: str):
                 except (TimeoutError, asyncio.TimeoutError):
                     yield ": keep-alive\n\n"
         finally:
-            _LIVE_CHANNELS.get(channel, set()).discard(q)
+            unsubscribe(channel, q)
 
     return StreamingResponse(
         gen(),

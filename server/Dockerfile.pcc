@@ -18,6 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Copy the application code (Pipecat Cloud runs bot.py's bot() entry).
 COPY ./bot.py bot.py
 COPY ./bot_proctor.py bot_proctor.py
+COPY ./live_relay.py live_relay.py
 COPY ./detector.py detector.py
 COPY ./exam_store.py exam_store.py
 COPY ./config.py config.py

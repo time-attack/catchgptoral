@@ -458,6 +458,10 @@ async def start_ai_run(name: str = "ai-student", test: dict[str, Any] | None = N
     create_session(session_id, title, questions, test_id=test_id)
     register_pending_sim(session_id, title, questions, test_id)
 
+    from live_relay import prime_channel, stress_channel
+
+    prime_channel(stress_channel(session_id))
+
     session_config = {
         "session_id": session_id,
         "title": title,
