@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CatchGPT · Oral Proctor</title>
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #09090b;          /* zinc-950 off-black */
+    --panel: #121214;
+    --panel-2: #17171a;
+    --line: #242428;
+    --line-2: #313137;
+    --text: #fafafa;
+    --muted: #a1a1aa;        /* zinc-400 */
+    --faint: #6f6f78;
+    --accent: #3b82f6;       /* electric blue, flat, used sparingly */
+    --accent-soft: rgba(59,130,246,.14);
+    --green: #34d399;        /* emerald-400 */
+    --amber: #fbbf24;
+    --red: #fb7185;          /* rose-400 */
+    --radius: 18px;
+    --radius-sm: 12px;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: "Satoshi", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --ease: cubic-bezier(.16,1,.3,1);
+    --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 24px 48px -28px rgba(0,0,0,.7);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; font-family: var(--sans); background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; line-height: 1.55;
+    letter-spacing: -.005em;
+  }
+  /* Ambient depth: soft blue wash + fine grain, fixed and non-interactive. */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+    background:
+      radial-gradient(900px 500px at 78% -8%, rgba(59,130,246,.10), transparent 60%),
+      radial-gradient(700px 500px at 8% 102%, rgba(52,211,153,.05), transparent 55%);
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  header {
+    display: flex; align-items: center; gap: 14px; padding: 16px 28px;
+    border-bottom: 1px solid var(--line); position: sticky; top: 0;
+    background: rgba(9,9,11,.72); backdrop-filter: blur(14px) saturate(140%); z-index: 20;
+  }
+  .logo { font-weight: 700; font-size: 17px; letter-spacing: -.03em; display: flex; align-items: center; gap: 9px; }
+  .logo .mark { width: 9px; height: 9px; border-radius: 3px; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .logo b { color: var(--text); font-weight: 800; }
+  .tag { font-size: 12px; color: var(--muted); border: 1px solid var(--line); padding: 4px 10px; border-radius: 999px; font-weight: 500; }
+  main { max-width: 1180px; margin: 0 auto; padding: 40px 28px 80px; }
+  h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 800; letter-spacing: -.03em; line-height: 1.05; margin: 0 0 10px; }
+  .sub { color: var(--muted); margin: 0 0 30px; font-size: 15px; max-width: 60ch; }
+  section { animation: rise .6s var(--ease) both; }
+
+  .card {
+    background: linear-gradient(180deg, var(--panel), #0f0f11);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 24px; box-shadow: var(--shadow);
+  }
+  .hidden { display: none !important; }
+
+  /* Upload */
+  .drop {
+    border: 1.5px dashed var(--line-2); border-radius: var(--radius); padding: 54px 24px;
+    text-align: center; cursor: pointer; transition: all .35s var(--ease);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .drop:hover, .drop.drag { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-2px); }
+  .drop .ic { color: var(--accent); margin-bottom: 8px; }
+  .drop h3 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+  .drop p { color: var(--muted); margin: 0; font-size: 14px; }
+
+  .btn {
+    appearance: none; border: 0; cursor: pointer; font: inherit; font-weight: 600; font-size: 14px;
+    background: #fafafa; color: #0a0a0a; padding: 11px 18px; border-radius: 11px;
+    display: inline-flex; align-items: center; gap: 8px; letter-spacing: -.01em;
+    transition: transform .12s var(--ease), filter .2s var(--ease), opacity .2s, background .2s;
+  }
+  .btn:hover { filter: brightness(.93); }
+  .btn:active { transform: translateY(1px) scale(.985); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+  .btn .ic { width: 17px; height: 17px; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line-2); }
+  .btn.ghost:hover { background: var(--panel-2); filter: none; }
+  .btn.danger { background: transparent; color: var(--red); border: 1px solid rgba(251,113,133,.4); }
+  .btn.danger:hover { background: rgba(251,113,133,.12); filter: none; }
+
+  .qlist { list-style: none; padding: 0; margin: 18px 0 0; display: flex; flex-direction: column; gap: 8px; }
+  .qlist li {
+    padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+    background: var(--panel-2); display: flex; gap: 14px; font-size: 14.5px; align-items: baseline;
+    transition: border-color .25s var(--ease), transform .25s var(--ease);
+    animation: rise .5s var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms);
+  }
+  .qlist li:hover { border-color: var(--line-2); transform: translateX(2px); }
+  .qlist .qn { font-family: var(--mono); color: var(--accent); font-weight: 600; font-size: 13px; }
+
+  /* Live layout */
+  .grid { display: grid; grid-template-columns: 1fr 372px; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .qnow-label { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); font-weight: 600; }
+  .qnow { font-size: 23px; font-weight: 700; margin: 10px 0 0; letter-spacing: -.02em; min-height: 62px; line-height: 1.25; }
+  .progress { display: flex; gap: 5px; margin-top: 18px; }
+  .progress span { height: 5px; flex: 1; border-radius: 99px; background: var(--line); transition: background .4s var(--ease); }
+
+  .transcript { height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 6px; }
+  .transcript::-webkit-scrollbar { width: 6px; }
+  .transcript::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 99px; }
+  .msg { padding: 10px 14px; border-radius: 14px; max-width: 92%; font-size: 14px; line-height: 1.5; animation: rise .35s var(--ease) both; }
+  .msg.examiner { background: var(--panel-2); border: 1px solid var(--line); align-self: flex-start; border-bottom-left-radius: 5px; }
+  .msg.student { background: var(--accent-soft); border: 1px solid rgba(59,130,246,.25); align-self: flex-end; border-bottom-right-radius: 5px; }
+  .msg .who { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); display: block; margin-bottom: 3px; font-weight: 600; }
+
+  /* Gauge */
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; }
+  .gauge { position: relative; width: 184px; height: 184px; }
+  /* SVG always fills its container so the ring stays concentric with the
+     centered number, regardless of the container size (monitor vs report). */
+  .gauge svg { transform: rotate(-90deg); width: 100%; height: 100%; display: block; }
+  .gauge circle { transition: stroke-dashoffset .8s var(--ease), stroke .4s var(--ease); }
+  .gauge .val { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .gauge .num { font-family: var(--mono); font-size: 42px; font-weight: 600; letter-spacing: -.03em; }
+  .gauge .lvl { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; margin-top: 4px; font-weight: 600; }
+
+  .scorecards { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .scard { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 13px 14px; animation: rise .4s var(--ease) both; }
+  .scard .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .scard .qt { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+  .scard .pct { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+  .bar { height: 7px; border-radius: 4px; background: var(--line); margin-top: 10px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; border-radius: 4px; transition: width .5s var(--ease), background .4s; }
+  .flag { font-size: 10.5px; padding: 3px 8px; border-radius: 7px; background: rgba(251,113,133,.15); color: var(--red); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+  .gradetag { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 7px; background: var(--accent-soft); color: #93b4fb; font-weight: 600; }
+
+  .turnstate {
+    margin-top: 18px; padding: 14px 16px; border-radius: var(--radius-sm); font-weight: 700; font-size: 15px;
+    text-align: center; border: 1px solid var(--line); transition: all .3s var(--ease);
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+  }
+  .turnstate .ic { width: 18px; height: 18px; flex-shrink: 0; }
+  .turnstate.speaking { background: rgba(251,191,36,.12); color: var(--amber); border-color: rgba(251,191,36,.35); }
+  .turnstate.yourturn { background: rgba(52,211,153,.14); color: var(--green); border-color: rgba(52,211,153,.45); animation: breathe 2s var(--ease) infinite; }
+  .turnstate.wait { background: var(--panel-2); color: var(--muted); }
+  .liveanswer-label { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); margin: 20px 0 8px; font-weight: 600; }
+  .liveanswer { min-height: 56px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--line); font-size: 15px; line-height: 1.55; transition: border-color .3s; }
+  .liveanswer:not(.empty) { border-color: rgba(59,130,246,.3); }
+  .liveanswer.empty { color: var(--faint); font-style: italic; }
+  .livebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+  .livepill { font-family: var(--mono); font-size: 12.5px; padding: 8px 13px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+  .livepill b { font-weight: 600; color: var(--text); }
+  .livepill.pulse { animation: pop .45s var(--ease); }
+  @keyframes pop { 0%{transform:scale(1);} 45%{transform:scale(1.07);} 100%{transform:scale(1);} }
+  @keyframes breathe { 0%,100%{ box-shadow: 0 0 0 0 rgba(52,211,153,0);} 50%{ box-shadow: 0 0 0 5px rgba(52,211,153,.08);} }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .statusline { display: flex; align-items: center; gap: 9px; color: var(--faint); font-size: 13px; margin-top: 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex-shrink: 0; }
+  .dot.live { background: var(--green); box-shadow: 0 0 0 0 rgba(52,211,153,.6); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.5);} 70%{box-shadow:0 0 0 8px rgba(52,211,153,0);} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0);} }
+
+  .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .spinner { width: 17px; height: 17px; border: 2px solid var(--line-2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .muted { color: var(--muted); }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); margin: 0 0 14px; font-weight: 600; }
+  .err { color: var(--red); font-size: 14px; margin-top: 12px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  /* ---- Exam stage redesign: exam is the hero, proctor data is secondary ---- */
+  .exambar {
+    display: flex; align-items: center; gap: 16px; padding: 12px 18px; margin-bottom: 22px;
+    border: 1px solid var(--line); border-radius: 999px; background: rgba(18,18,20,.7);
+    backdrop-filter: blur(10px); font-size: 13px; color: var(--muted); box-shadow: var(--shadow);
+  }
+  .exambar .examtitle { font-weight: 700; color: var(--text); letter-spacing: -.01em; }
+  .exambar .exambar-q { color: var(--muted); white-space: nowrap; }
+  .exambar .exambar-q b { font-family: var(--mono); color: var(--text); font-weight: 600; }
+  .exambar .progress { flex: 1; margin: 0; }
+  .exambar .statusline { margin: 0; }
+
+  .stage-grid { display: grid; grid-template-columns: minmax(0,1fr) 332px; gap: 22px; align-items: start; }
+  @media (max-width: 940px) { .stage-grid { grid-template-columns: 1fr; } }
+
+  /* Primary focus area */
+  .stage {
+    background: linear-gradient(180deg, var(--panel), #0e0e10);
+    border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 30px 36px 30px; display: flex; flex-direction: column;
+  }
+  @media (max-width: 600px) { .stage { padding: 22px 20px; } }
+  .stage .turnstate { margin-top: 0; }
+  .stage .qnow-label { margin-top: 26px; }
+  .stage .qnow {
+    font-size: clamp(24px, 3vw, 33px); font-weight: 800; letter-spacing: -.025em;
+    line-height: 1.2; margin: 10px 0 0; min-height: 0;
+  }
+  .answerwrap { margin-top: 28px; }
+  .stage .liveanswer { min-height: 84px; font-size: 16px; }
+  .stage-actions { margin-top: 26px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .btn.big { font-size: 16px; padding: 15px 26px; border-radius: 13px; }
+  .btn.big .ic { width: 19px; height: 19px; }
+  .stage .hint { font-size: 12.5px; margin: 16px 0 0; max-width: 56ch; }
+
+  /* Secondary proctor monitor rail */
+  .monitor {
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel);
+    box-shadow: var(--shadow); padding: 20px; display: flex; flex-direction: column; gap: 20px;
+    position: sticky; top: 88px;
+  }
+  @media (max-width: 940px) { .monitor { position: static; } }
+  .monitor-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .monitor-head .ttl { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); font-weight: 600; }
+  .btn.small { padding: 7px 13px; font-size: 12px; border-radius: 9px; }
+  .monitor .gauge { width: 150px; height: 150px; }
+  .monitor .gauge .num { font-size: 34px; }
+  .monitor .scorecards { margin-top: 12px; }
+  .monitor .scard { padding: 10px 12px; }
+  .tr-wrap summary {
+    cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--faint); font-weight: 600; list-style: none; user-select: none;
+  }
+  .tr-wrap summary::-webkit-details-marker { display: none; }
+  .tr-wrap summary::before { content: "▸ "; color: var(--faint); }
+  .tr-wrap[open] summary::before { content: "▾ "; }
+  .tr-wrap .transcript { height: 220px; margin-top: 12px; }
+
+  /* Report focal summary banner */
+  .resultbar { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0 0 24px; }
+  @media (max-width: 600px) { .resultbar { grid-template-columns: 1fr; } }
+  .resultcard {
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px;
+    background: linear-gradient(180deg, var(--panel), #0e0e10); box-shadow: var(--shadow);
+  }
+  .resultcard .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--faint); font-weight: 600; }
+  .resultcard .big { font-family: var(--mono); font-size: 44px; font-weight: 600; letter-spacing: -.03em; margin-top: 8px; line-height: 1; }
+  .resultcard .meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .resultcard .gauge { width: 116px; height: 116px; flex-shrink: 0; }
+  .resultcard .gauge svg { width: 116px; height: 116px; }
+  .resultcard .gauge .num { font-size: 28px; }
+  .resultcard .gauge .lvl { font-size: 9px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><span class="mark"></span>Catch<b>GPT</b></div>
+  <div class="tag">Oral Proctor</div>
+  <div style="flex:1"></div>
+  <div class="tag" id="sessionTag" style="display:none"></div>
+</header>
+
+<main>
+  <!-- STEP 1: UPLOAD -->
+  <section id="step-upload">
+    <h1>Upload an exam to begin</h1>
+    <p class="sub">We'll turn it into a spoken oral exam and listen for AI-scripted answers in real time.</p>
+    <div class="card">
+      <div class="drop" id="drop">
+        <svg class="ic" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/><path d="M12 17v-6"/><path d="m9.5 13.5 2.5-2.5 2.5 2.5"/></svg>
+        <h3>Drop a PDF here, or click to browse</h3>
+        <p>The exam content is turned into spoken oral questions.</p>
+      </div>
+      <input type="file" id="file" accept="application/pdf" class="hidden" />
+      <div class="row" id="uploadStatus" style="margin-top:16px; display:none">
+        <div class="spinner"></div><span class="muted">Reading PDF and generating questions…</span>
+      </div>
+      <div class="err hidden" id="uploadErr"></div>
+    </div>
+  </section>
+
+  <!-- STEP 2: REVIEW QUESTIONS -->
+  <section id="step-review" class="hidden">
+    <h1 id="examTitle">Oral Exam</h1>
+    <p class="sub" id="examMeta"></p>
+    <div class="card">
+      <p class="section-title">Generated questions</p>
+      <ul class="qlist" id="qlist"></ul>
+      <div class="row" style="margin-top:18px">
+        <button class="btn" id="startBtn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/></svg>Start oral exam</button>
+        <span class="muted">Make sure your microphone is enabled.</span>
+      </div>
+      <div class="err hidden" id="startErr"></div>
+    </div>
+  </section>
+
+  <!-- STEP 3: LIVE -->
+  <section id="step-live" class="hidden">
+    <div class="exambar">
+      <span class="examtitle" id="liveTitle">Oral exam</span>
+      <span class="exambar-q">Question <b id="qpos">—</b></span>
+      <div class="progress" id="progress"></div>
+      <span class="statusline"><span class="dot" id="liveDot"></span><span id="liveStatus" class="muted">Connecting…</span></span>
+    </div>
+
+    <div class="stage-grid">
+      <!-- PRIMARY: the exam itself -->
+      <div class="stage">
+        <div id="turnState" class="turnstate wait">Connecting…</div>
+        <div class="qnow-label">Current question</div>
+        <h2 class="qnow" id="qnow">Connecting…</h2>
+        <div class="answerwrap">
+          <div class="liveanswer-label">Your answer (live)</div>
+          <div class="liveanswer empty" id="liveAnswer">Your words will appear here as you speak…</div>
+        </div>
+        <div class="stage-actions">
+          <button class="btn big" id="doneBtn" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span class="label">Done speaking</span></button>
+          <span class="livepill" id="livePill">live AI <b id="liveVal">—</b> <span id="liveWords" class="muted"></span></span>
+        </div>
+        <p class="muted hint" id="doneHint">The examiner won't interrupt you. Speak your full answer, then click Done speaking to submit and move on.</p>
+      </div>
+
+      <!-- SECONDARY: proctor analytics -->
+      <aside class="monitor">
+        <div class="monitor-head">
+          <span class="ttl">Proctor monitor</span>
+          <button class="btn ghost small" id="endBtn">End exam</button>
+        </div>
+        <div class="gauge-wrap">
+          <p class="section-title" style="align-self:flex-start">Overall suspicion</p>
+          <div class="gauge">
+            <svg width="180" height="180" viewBox="0 0 180 180">
+              <circle cx="90" cy="90" r="78" fill="none" stroke="var(--line)" stroke-width="14"/>
+              <circle id="gaugeArc" cx="90" cy="90" r="78" fill="none" stroke="var(--green)" stroke-width="14"
+                stroke-linecap="round" stroke-dasharray="490" stroke-dashoffset="490"/>
+            </svg>
+            <div class="val"><div class="num" id="gaugeNum">—</div><div class="lvl" id="gaugeLvl">awaiting</div></div>
+          </div>
+        </div>
+        <div>
+          <p class="section-title">Per-question</p>
+          <div class="scorecards" id="scorecards"></div>
+        </div>
+        <details class="tr-wrap" open>
+          <summary>Transcript</summary>
+          <div class="transcript" id="transcript"></div>
+        </details>
+      </aside>
+    </div>
+  </section>
+
+  <!-- STEP 4: REPORT -->
+  <section id="step-report" class="hidden">
+    <h1>Exam report card</h1>
+    <p class="sub" id="reportMeta"></p>
+
+    <!-- Focal results first -->
+    <div class="resultbar">
+      <div class="resultcard">
+        <div class="lbl">Final grade</div>
+        <div class="big" id="reportGrade">—</div>
+        <div class="meta">Correctness, graded by an AI examiner</div>
+      </div>
+      <div class="resultcard" style="display:flex; align-items:center; gap:22px">
+        <div class="gauge">
+          <svg width="180" height="180" viewBox="0 0 180 180">
+            <circle cx="90" cy="90" r="78" fill="none" stroke="var(--line)" stroke-width="14"/>
+            <circle id="rGaugeArc" cx="90" cy="90" r="78" fill="none" stroke="var(--green)" stroke-width="14"
+              stroke-linecap="round" stroke-dasharray="490" stroke-dashoffset="490"/>
+          </svg>
+          <div class="val"><div class="num" id="rGaugeNum">—</div><div class="lvl" id="rGaugeLvl"></div></div>
+        </div>
+        <div>
+          <div class="lbl">Overall AI suspicion</div>
+          <div class="meta" id="reportSuspMeta">Average across answered questions.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed breakdown -->
+    <div class="card">
+      <p class="section-title">Per-question breakdown</p>
+      <div class="scorecards" id="reportCards"></div>
+    </div>
+    <button class="btn ghost" onclick="location.reload()" style="margin-top:22px">Proctor another exam</button>
+  </section>
+</main>
+
+<audio id="botAudio" autoplay></audio>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const CIRC = 2 * Math.PI * 78; // 490.x
+
+let SESSION = null;
+let QUESTIONS = [];
+let pc = null;
+let evtSource = null;
+
+// ---------- Step 1: upload ----------
+const drop = $("drop"), fileInput = $("file");
+drop.onclick = () => fileInput.click();
+["dragover","dragenter"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("drag"); }));
+["dragleave","drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("drag"); }));
+drop.addEventListener("drop", ev => { if (ev.dataTransfer.files[0]) uploadFile(ev.dataTransfer.files[0]); });
+fileInput.onchange = () => { if (fileInput.files[0]) uploadFile(fileInput.files[0]); };
+
+async function uploadFile(file) {
+  $("uploadErr").classList.add("hidden");
+  $("uploadStatus").style.display = "flex";
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const r = await fetch("/upload-exam", { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const data = await r.json();
+    SESSION = data.session_id;
+    QUESTIONS = data.questions;
+    showReview(data);
+  } catch (e) {
+    $("uploadErr").textContent = "Upload failed: " + e.message;
+    $("uploadErr").classList.remove("hidden");
+  } finally {
+    $("uploadStatus").style.display = "none";
+  }
+}
+
+function showReview(data) {
+  $("step-upload").classList.add("hidden");
+  $("step-review").classList.remove("hidden");
+  $("examTitle").textContent = data.title;
+  $("examMeta").textContent = `${data.num_questions} questions · session ${data.session_id}`;
+  $("sessionTag").style.display = "inline-block";
+  $("sessionTag").textContent = "session " + data.session_id;
+  const list = $("qlist");
+  list.innerHTML = "";
+  data.questions.forEach((q, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="qn">${i+1}</span><span>${escapeHtml(q)}</span>`;
+    list.appendChild(li);
+  });
+}
+
+// ---------- Step 2 -> 3: start exam (WebRTC) ----------
+$("startBtn").onclick = startExam;
+
+async function startExam() {
+  $("startErr").classList.add("hidden");
+  $("startBtn").disabled = true;
+  try {
+    buildLiveScaffold();
+    $("step-review").classList.add("hidden");
+    $("step-live").classList.remove("hidden");
+    openEventStream();
+    await connectWebRTC();
+  } catch (e) {
+    $("step-live").classList.add("hidden");
+    $("step-review").classList.remove("hidden");
+    $("startErr").textContent = "Could not start: " + e.message;
+    $("startErr").classList.remove("hidden");
+    $("startBtn").disabled = false;
+  }
+}
+
+async function connectWebRTC() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+  // addTrack creates a sendrecv transceiver — the bot returns its audio on the
+  // same m-line, so we both send the mic and receive the bot's voice.
+  stream.getTracks().forEach(t => pc.addTrack(t, stream));
+  pc.ontrack = (e) => { $("botAudio").srcObject = e.streams[0]; };
+  pc.onconnectionstatechange = () => {
+    if (["failed","disconnected","closed"].includes(pc.connectionState)) setLive(false, "Disconnected");
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await waitForIce(pc);
+
+  const r = await fetch("/api/offer", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sdp: pc.localDescription.sdp,
+      type: pc.localDescription.type,
+      request_data: { session_id: SESSION },
+    }),
+  });
+  if (!r.ok) throw new Error("offer rejected (" + r.status + ")");
+  const answer = await r.json();
+  await pc.setRemoteDescription(answer);
+  setLive(true, "Connected");
+  // The Done Speaking button stays disabled until it's the student's turn
+  // (driven by bot_speaking events from the server).
+}
+
+// ---------- Done Speaking: commit the current question's score ----------
+$("doneBtn").onclick = async () => {
+  const btn = $("doneBtn");
+  const label = btn.querySelector(".label");
+  btn.disabled = true;
+  const prev = label.textContent;
+  label.textContent = "Submitting…";
+  try {
+    const r = await fetch(`/done-speaking/${SESSION}`, { method: "POST" });
+    const d = await r.json();
+    if (!d.ok) { $("doneHint").textContent = d.reason || "Nothing to submit yet."; }
+    else { $("doneHint").textContent = `Submitted Q${d.index + 1} → ${Math.round(d.combined_score*100)}% AI-suspicion committed.`; }
+  } catch (e) {
+    $("doneHint").textContent = "Submit failed: " + e.message;
+    btn.disabled = false;  // let them retry
+  } finally {
+    label.textContent = prev;
+    // Leave disabled on success — the bot now speaks the next question, and the
+    // turn-state ("Your turn") re-enables it when it's time to answer again.
+  }
+};
+
+function waitForIce(pc) {
+  return new Promise((resolve) => {
+    if (pc.iceGatheringState === "complete") return resolve();
+    const check = () => { if (pc.iceGatheringState === "complete") { pc.removeEventListener("icegatheringstatechange", check); resolve(); } };
+    pc.addEventListener("icegatheringstatechange", check);
+    setTimeout(resolve, 2500); // fall back to whatever we have
+  });
+}
+
+$("endBtn").onclick = () => { if (pc) pc.close(); fetchReportAndShow(); };
+
+// ---------- Live dashboard ----------
+function buildLiveScaffold() {
+  $("liveTitle").textContent = $("examTitle").textContent;
+  const prog = $("progress"); prog.innerHTML = "";
+  QUESTIONS.forEach(() => prog.appendChild(document.createElement("span")));
+  const cards = $("scorecards"); cards.innerHTML = "";
+  QUESTIONS.forEach((q, i) => {
+    const d = document.createElement("div");
+    d.className = "scard"; d.id = "scard-" + i;
+    d.innerHTML = `<div class="top"><span class="qt">Q${i+1}</span><span class="pct" id="pct-${i}">—</span></div>
+      <div class="bar"><i id="bar-${i}"></i></div>`;
+    cards.appendChild(d);
+  });
+  $("transcript").innerHTML = "";
+}
+
+function openEventStream() {
+  if (evtSource) evtSource.close();
+  evtSource = new EventSource(`/events/${SESSION}`);
+  evtSource.onmessage = (m) => handleEvent(JSON.parse(m.data));
+  evtSource.onerror = () => {};
+}
+
+function handleEvent(ev) {
+  switch (ev.type) {
+    case "snapshot": if (ev.report) applyReport(ev.report, false); break;
+    case "connected": setLive(true, "Listening…"); break;
+    case "question":
+      $("qnow").textContent = ev.question;
+      $("qpos").textContent = `${ev.index + 1} of ${ev.total}`;
+      markProgress(ev.index);
+      resetLive();          // new question → clear provisional read-out
+      studentBubbleEl = null; // next answer starts a fresh single bubble
+      break;
+    case "examiner_speech": addMsg("examiner", ev.text); break;
+    case "interim": renderLiveAnswer(ev.text); ensureYourTurn(); break;
+    case "transcript": if (ev.role === "student") { commitLiveWords(ev.text); setStudentBubble(); ensureYourTurn(); } break;
+    case "live_score": applyLive(ev); break;
+    case "suspicion": applySuspicion(ev); break;
+    case "bot_speaking": setTurn(ev.speaking); break;
+    case "completed": applyReport(ev.report, false); setTimeout(() => showReport(ev.report), 1200); break;
+  }
+}
+
+// ---------- Turn state: whose turn is it ----------
+const ICON_FLAG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-right:1px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>';
+const ICON_SPEAKER = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 6a9 9 0 0 1 0 12"/></svg>';
+const ICON_MIC = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/></svg>';
+let turnWatchdog = null;
+function setTurn(botSpeaking) {
+  const el = $("turnState"), btn = $("doneBtn");
+  if (turnWatchdog) { clearTimeout(turnWatchdog); turnWatchdog = null; }
+  if (botSpeaking) {
+    el.className = "turnstate speaking";
+    el.innerHTML = ICON_SPEAKER + "<span>Examiner is speaking — please wait</span>";
+    btn.disabled = true;
+    // Safety net: never leave the button locked. If the bot's "stopped
+    // speaking" signal is missed/delayed, free the button after a max wait.
+    turnWatchdog = setTimeout(() => setTurn(false), 16000);
+  } else {
+    el.className = "turnstate yourturn";
+    el.innerHTML = ICON_MIC + "<span>Your turn — speak, then click Done speaking</span>";
+    btn.disabled = false;
+  }
+}
+// If we're receiving the student's speech, it's unambiguously their turn —
+// enable the button regardless of whether the bot-stopped signal arrived.
+function ensureYourTurn() { if ($("doneBtn").disabled) setTurn(false); }
+
+// ---------- Live answer: show the student's words as they speak ----------
+let liveCommitted = "";
+function renderLiveAnswer(extra) {
+  const box = $("liveAnswer");
+  const full = (liveCommitted + " " + (extra || "")).trim();
+  if (full) { box.textContent = full; box.classList.remove("empty"); }
+  else { box.textContent = "Your words will appear here as you speak…"; box.classList.add("empty"); }
+}
+function commitLiveWords(text) { liveCommitted = (liveCommitted + " " + text).trim(); renderLiveAnswer(""); }
+
+// One transcript bubble per question's answer — it grows as the student speaks,
+// rather than spawning a new bubble on every pause.
+let studentBubbleEl = null;
+function setStudentBubble() {
+  if (!studentBubbleEl) studentBubbleEl = addMsg("student", "");
+  studentBubbleEl.querySelector(".content").textContent = liveCommitted;
+  scrollTranscript();
+}
+
+function addMsg(role, text) {
+  const d = document.createElement("div");
+  d.className = "msg " + role;
+  d.innerHTML = `<span class="who">${role}</span><span class="content"></span>`;
+  d.querySelector(".content").textContent = text;
+  $("transcript").appendChild(d);
+  scrollTranscript();
+  return d;
+}
+function scrollTranscript() { const t = $("transcript"); t.scrollTop = t.scrollHeight; }
+
+function markProgress(idx) {
+  document.querySelectorAll("#progress span").forEach((s, i) => {
+    s.style.background = i < idx ? "var(--accent)" : i === idx ? "var(--green)" : "var(--line)";
+  });
+}
+
+function applyLive(ev) {
+  // Provisional running score (every ~10 words) — NOT committed to the report.
+  const pill = $("livePill"), val = $("liveVal");
+  const pct = Math.round(ev.live_score * 100);
+  val.textContent = pct + "%";
+  val.style.color = colorFor(ev.live_score);
+  $("liveWords").textContent = ev.words ? `· ${ev.words} words` : "";
+  pill.classList.remove("pulse"); void pill.offsetWidth; pill.classList.add("pulse");
+}
+
+function resetLive() {
+  $("liveVal").textContent = "—";
+  $("liveVal").style.color = "var(--muted)";
+  $("liveWords").textContent = "";
+  liveCommitted = "";
+  renderLiveAnswer("");
+}
+
+function applySuspicion(ev) {
+  // Committed score (Done Speaking) — fills the per-question bar + overall gauge.
+  setBar(ev.index, ev.combined_score);
+  if (ev.overall_score != null) setGauge("gauge", ev.overall_score);
+}
+
+function setBar(i, score) {
+  const pct = Math.round(score * 100);
+  const c = colorFor(score);
+  const bar = $("bar-" + i), pctEl = $("pct-" + i);
+  if (!bar) return;
+  bar.style.width = pct + "%";
+  bar.style.minWidth = pct > 0 ? "10px" : "0";   // a non-zero score always shows a clear sliver
+  bar.style.background = c;
+  pctEl.textContent = pct + "%"; pctEl.style.color = c;
+  const top = $("scard-" + i).querySelector(".top");
+  let flag = $("scard-" + i).querySelector(".flag");
+  if (score >= 0.7 && !flag) {
+    flag = document.createElement("span"); flag.className = "flag"; flag.innerHTML = ICON_FLAG + "flagged";
+    top.insertBefore(flag, pctEl);
+  } else if (score < 0.7 && flag) { flag.remove(); }
+}
+
+function colorFor(s) { return s >= 0.7 ? "var(--red)" : s >= 0.4 ? "var(--amber)" : "var(--green)"; }
+function levelName(s) { return s >= 0.7 ? "high" : s >= 0.4 ? "medium" : "low"; }
+
+function setGauge(prefix, score) {
+  const arc = $(prefix === "gauge" ? "gaugeArc" : "rGaugeArc");
+  const num = $(prefix === "gauge" ? "gaugeNum" : "rGaugeNum");
+  const lvl = $(prefix === "gauge" ? "gaugeLvl" : "rGaugeLvl");
+  const c = colorFor(score);
+  arc.style.stroke = c;
+  arc.style.strokeDashoffset = CIRC * (1 - score);
+  num.textContent = Math.round(score * 100);
+  num.style.color = c;
+  lvl.textContent = levelName(score);
+  lvl.style.color = c;
+}
+
+function setLive(on, text) {
+  $("liveDot").className = "dot" + (on ? " live" : "");
+  $("liveStatus").textContent = text;
+}
+
+function applyReport(report, isFinal) {
+  if (!report) return;
+  (report.questions || []).forEach(q => { if (q.combined_score != null) setBar(q.index, q.combined_score); });
+  if (report.overall_score != null) setGauge(isFinal ? "r" : "gauge", report.overall_score);
+}
+
+// ---------- Step 4: report ----------
+async function fetchReportAndShow() {
+  try {
+    const r = await fetch(`/report/${SESSION}`);
+    showReport(await r.json());
+  } catch (e) { /* ignore */ }
+}
+
+function showReport(report) {
+  if (evtSource) evtSource.close();
+  $("step-live").classList.add("hidden");
+  $("step-report").classList.remove("hidden");
+  const lvl = report.suspicion_level || "unknown";
+  const gradeBit = report.overall_grade ? ` · grade ${report.overall_grade} (${report.grade_score}%)` : "";
+  $("reportMeta").textContent =
+    `${report.title} · ${report.num_scored}/${report.num_questions} answered · ` +
+    `${report.flagged_questions.length} flagged (≥${report.flag_threshold})${gradeBit}`;
+  const cards = $("reportCards"); cards.innerHTML = "";
+  (report.questions || []).forEach(q => {
+    const score = q.combined_score;
+    const c = score == null ? "var(--muted)" : colorFor(score);
+    const d = document.createElement("div");
+    d.className = "scard";
+    const pct = score == null ? "n/a" : Math.round(score * 100) + "%";
+    const gradeTag = q.grade
+      ? `<span class="gradetag">${escapeHtml(q.grade)} · ${q.grade_score}%</span>` : "";
+    d.innerHTML = `
+      <div class="top">
+        <span class="qt">Q${q.index + 1}</span>
+        <span>${gradeTag}${q.flagged ? ` <span class="flag">${ICON_FLAG}flagged</span>` : ''} <span class="pct" style="color:${c}">${pct} AI</span></span>
+      </div>
+      <div style="font-size:13px; margin:7px 0 2px">${escapeHtml(q.question)}</div>
+      <div class="bar"><i style="width:${score == null ? 0 : Math.round(score*100)}%;background:${c}"></i></div>
+      ${q.grade_feedback ? `<div style="font-size:12px;margin-top:8px"><b>Grade:</b> ${escapeHtml(q.grade_feedback)}</div>` : ''}
+      ${q.combined_text ? `<div class="muted" style="font-size:12px;margin-top:6px">“${escapeHtml(q.combined_text)}”</div>` : ''}
+      <div class="muted" style="font-size:11px;margin-top:6px">AI detector: ${q.detector_source || '—'}</div>`;
+    cards.appendChild(d);
+  });
+  if (report.overall_score != null) setGauge("r", report.overall_score);
+  else { $("rGaugeNum").textContent = "—"; $("rGaugeLvl").textContent = lvl; }
+  // Overall grade badge next to the suspicion gauge.
+  const gb = $("reportGrade");
+  if (gb) gb.textContent = report.overall_grade ? `${report.overall_grade} · ${report.grade_score}%` : "—";
+}
+
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+</script>
+</body>
+</html>

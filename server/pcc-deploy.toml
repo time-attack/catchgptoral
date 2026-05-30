@@ -1,0 +1,9 @@
+agent_name = "catchgpt-proctor"
+secret_set = "catchgpt-proctor-secrets"
+agent_profile = "agent-1x"
+
+[krisp_viva]
+	audio_filter = "tel"
+
+[scaling]
+	min_agents = 1

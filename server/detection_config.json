@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "flag_threshold": 0.7,
+  "sapling_weight": 1.0,
+  "claude_weight": 0.0,
+  "min_chars": 40,
+  "detect_every_words": 50,
+  "followup_aggressiveness": "medium",
+  "updated_at": null,
+  "last_eval": null,
+  "_note": "Live defaults (conservative threshold so honest students aren't false-accused). Run `uv run tune_detection.py --generate 8` (or --from-cekura RUN_ID) to retune flag_threshold + followup_aggressiveness from labeled data; results append to eval_log.json. A prior local run improved F1 0.55->0.80 by lowering the threshold at the cost of precision (FPR 0.0->0.5) — see eval_log.json."
+}
