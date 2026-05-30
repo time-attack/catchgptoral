@@ -247,6 +247,10 @@ class AutoAdvanceWatcher(FrameProcessor):
         self._cancel()
         self._timer = asyncio.create_task(self._fire())
 
+    def _record_has_answer(self) -> bool:
+        record = self._session.current_record
+        return bool(record and len(record.combined_text.split()) >= self._min_words)
+
     async def _fire(self) -> None:
         try:
             await asyncio.sleep(self._silence)
@@ -279,7 +283,11 @@ class AutoAdvanceWatcher(FrameProcessor):
             self._cancel()  # don't advance while the examiner is talking
         elif isinstance(frame, BotStoppedSpeakingFrame):
             self._bot_speaking = False
-            self._spoke = False  # start a fresh listening window for this question
+            # If the stop event arrives late, don't erase an already-captured
+            # answer and leave the simulated student hanging.
+            self._spoke = self._record_has_answer()
+            if self._spoke:
+                self._arm()
         elif isinstance(frame, (InterimTranscriptionFrame, TranscriptionFrame)):
             if getattr(frame, "text", "").strip() and not self._bot_speaking:
                 self._spoke = True

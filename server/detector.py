@@ -239,7 +239,7 @@ def _parse_questions(raw: str | None, num: int) -> dict[str, Any]:
         raise ValueError("No questions in model response")
     return {
         "title": (obj.get("title") or "Oral Exam").strip(),
-        "questions": questions[: max(num, len(questions))],
+        "questions": questions[:num],
     }
 
 

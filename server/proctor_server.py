@@ -20,6 +20,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 import aiohttp
 import fitz  # PyMuPDF
@@ -29,7 +30,7 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from loguru import logger
 from pipecat.runner.types import SmallWebRTCRunnerArguments
-from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
+from pipecat.transports.smallwebrtc.connection import IceServer, SmallWebRTCConnection
 from pipecat.transports.smallwebrtc.request_handler import (
     SmallWebRTCPatchRequest,
     SmallWebRTCRequest,
@@ -75,7 +76,49 @@ TRAINING_HTML = STATIC_DIR / "training.html"
 TRAIN_HTML = STATIC_DIR / "train.html"
 TEST_HTML = STATIC_DIR / "test.html"
 
-_webrtc_handler = SmallWebRTCRequestHandler()
+
+def _env_csv(name: str, default: str = "") -> list[str]:
+    return [x.strip() for x in os.getenv(name, default).split(",") if x.strip()]
+
+
+def _ice_server_payloads() -> list[dict[str, Any]]:
+    """ICE config used by both browser and server-side aiortc.
+
+    SmallWebRTC works locally with host/STUN candidates, but a deployed server
+    behind Railway/NAT needs TURN for reliable media relay.
+    """
+    payloads: list[dict[str, Any]] = []
+    stun_urls = _env_csv("WEBRTC_STUN_URLS", "stun:stun.l.google.com:19302")
+    if stun_urls:
+        payloads.append({"urls": stun_urls})
+
+    turn_urls = _env_csv("WEBRTC_TURN_URLS")
+    if turn_urls:
+        turn_server: dict[str, Any] = {"urls": turn_urls}
+        username = os.getenv("WEBRTC_TURN_USERNAME")
+        credential = os.getenv("WEBRTC_TURN_CREDENTIAL")
+        if username:
+            turn_server["username"] = username
+        if credential:
+            turn_server["credential"] = credential
+        payloads.append(turn_server)
+    elif os.getenv("ENV") != "local":
+        logger.warning("WEBRTC_TURN_URLS is unset; deployed SmallWebRTC may time out on ICE.")
+    return payloads
+
+
+def _server_ice_servers() -> list[IceServer]:
+    return [
+        IceServer(
+            urls=payload["urls"],
+            username=payload.get("username"),
+            credential=payload.get("credential"),
+        )
+        for payload in _ice_server_payloads()
+    ]
+
+
+_webrtc_handler = SmallWebRTCRequestHandler(ice_servers=_server_ice_servers())
 
 
 @asynccontextmanager
@@ -106,8 +149,12 @@ async def take_test(test_id: str):
 # --- Teacher: create a test, share it, read results ----------------------
 
 
+def _question_count(value: int) -> int:
+    return max(1, min(10, value))
+
+
 @app.post("/api/teacher/upload")
-async def teacher_upload(file: UploadFile = File(...)):
+async def teacher_upload(file: UploadFile = File(...), num_questions: int = Form(3)):
     """Teacher uploads a PDF -> generate questions -> create a shareable Test."""
     raw = await file.read()
     if not raw:
@@ -118,7 +165,7 @@ async def teacher_upload(file: UploadFile = File(...)):
         raise HTTPException(400, f"Could not read PDF: {e}") from e
     if len(text.strip()) < 50:
         raise HTTPException(400, "Could not extract enough text from this PDF.")
-    num = int(os.getenv("NUM_QUESTIONS", "6"))
+    num = _question_count(num_questions or int(os.getenv("NUM_QUESTIONS", "3")))
     result = await generate_questions(text, num=num)
     test = create_test(result["title"], result["questions"])
     logger.info(f"Created test {test['test_id']}: {test['title']} ({len(test['questions'])} Qs)")
@@ -165,7 +212,7 @@ async def api_test_results(test_id: str):
 
 
 @app.post("/upload-exam")
-async def upload_exam(file: UploadFile = File(...)):
+async def upload_exam(file: UploadFile = File(...), num_questions: int = Form(3)):
     """Accept an exam PDF, extract its text, generate oral exam questions, and
     register a proctoring session."""
     raw = await file.read()
@@ -183,7 +230,7 @@ async def upload_exam(file: UploadFile = File(...)):
             400, "Could not extract enough text from this PDF (is it a scanned image?)."
         )
 
-    num = int(os.getenv("NUM_QUESTIONS", "6"))
+    num = _question_count(num_questions or int(os.getenv("NUM_QUESTIONS", "3")))
     logger.info(f"Generating {num} questions from {len(text)} chars of exam text")
     result = await generate_questions(text, num=num)
 
@@ -229,6 +276,12 @@ async def offer(request: SmallWebRTCRequest, background_tasks: BackgroundTasks):
         webrtc_connection_callback=webrtc_connection_callback,
     )
     return answer
+
+
+@app.get("/api/ice-servers")
+async def ice_servers():
+    """Browser-side ICE config for SmallWebRTC."""
+    return {"ice_servers": _ice_server_payloads()}
 
 
 @app.patch("/api/offer")
@@ -411,9 +464,14 @@ async def api_training_latest_run():
 
 
 @app.post("/api/training/run-ai")
-async def api_training_run_ai():
+async def api_training_run_ai(payload: dict | None = None):
     """Send one simulated AI student to take the exam (no fake-human sim)."""
-    return JSONResponse(await start_ai_run())
+    payload = payload or {}
+    test_id = payload.get("test_id")
+    test = get_test(test_id) if test_id else None
+    if test_id and test is None:
+        raise HTTPException(404, "Unknown test")
+    return JSONResponse(await start_ai_run(test=test))
 
 
 @app.post("/api/training/train")

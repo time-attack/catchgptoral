@@ -496,12 +496,20 @@ async function startExam() {
 
 async function connectWebRTC() {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+  pc = new RTCPeerConnection({ iceServers: await loadIceServers() });
+  let remotePcId = null;
+  const queuedCandidates = [];
+  pc.onicecandidate = (e) => {
+    if (!e.candidate) return;
+    if (!remotePcId) queuedCandidates.push(e.candidate);
+    else patchIceCandidate(remotePcId, e.candidate);
+  };
   // addTrack creates a sendrecv transceiver — the bot returns its audio on the
   // same m-line, so we both send the mic and receive the bot's voice.
   stream.getTracks().forEach(t => pc.addTrack(t, stream));
   pc.ontrack = (e) => { $("botAudio").srcObject = e.streams[0]; };
   pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "connected") setLive(true, "Connected");
     if (["failed","disconnected","closed"].includes(pc.connectionState)) setLive(false, "Disconnected");
   };
 
@@ -521,9 +529,39 @@ async function connectWebRTC() {
   if (!r.ok) throw new Error("offer rejected (" + r.status + ")");
   const answer = await r.json();
   await pc.setRemoteDescription(answer);
-  setLive(true, "Connected");
+  remotePcId = answer.pc_id;
+  queuedCandidates.splice(0).forEach((candidate) => patchIceCandidate(remotePcId, candidate));
+  await waitForConnection(pc);
   // The Done Speaking button stays disabled until it's the student's turn
   // (driven by bot_speaking events from the server).
+}
+
+async function loadIceServers() {
+  try {
+    const r = await fetch("/api/ice-servers");
+    if (r.ok) {
+      const d = await r.json();
+      if (Array.isArray(d.ice_servers) && d.ice_servers.length) return d.ice_servers;
+    }
+  } catch (_) {}
+  return [{ urls: "stun:stun.l.google.com:19302" }];
+}
+
+async function patchIceCandidate(pcId, candidate) {
+  try {
+    await fetch("/api/offer", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pc_id: pcId,
+        candidates: [{
+          candidate: candidate.candidate,
+          sdp_mid: candidate.sdpMid,
+          sdp_mline_index: candidate.sdpMLineIndex,
+        }],
+      }),
+    });
+  } catch (_) {}
 }
 
 // ---------- Done Speaking: commit the current question's score ----------
@@ -554,6 +592,30 @@ function waitForIce(pc) {
     const check = () => { if (pc.iceGatheringState === "complete") { pc.removeEventListener("icegatheringstatechange", check); resolve(); } };
     pc.addEventListener("icegatheringstatechange", check);
     setTimeout(resolve, 2500); // fall back to whatever we have
+  });
+}
+
+function waitForConnection(pc) {
+  return new Promise((resolve, reject) => {
+    if (pc.connectionState === "connected") return resolve();
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("WebRTC connection timed out. The deployed app needs TURN credentials for SmallWebRTC."));
+    }, 30000);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      pc.removeEventListener("connectionstatechange", check);
+    };
+    const check = () => {
+      if (pc.connectionState === "connected") {
+        cleanup();
+        resolve();
+      } else if (["failed","disconnected","closed"].includes(pc.connectionState)) {
+        cleanup();
+        reject(new Error("WebRTC connection " + pc.connectionState));
+      }
+    };
+    pc.addEventListener("connectionstatechange", check);
   });
 }
 

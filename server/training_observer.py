@@ -419,12 +419,23 @@ def _ai_scenario_ids() -> list[int]:
             if "cheat" in (s.get("name") or "").lower() or "ai" in (s.get("name") or "").lower()]
 
 
-async def start_ai_run(name: str = "ai-student") -> dict[str, Any]:
-    """Send ONE simulated AI student to take the exam (the AI/cheat scenario only)."""
+async def start_ai_run(name: str = "ai-student", test: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Send ONE simulated AI student to take the teacher's exam."""
+    session_config = None
+    if test:
+        session_config = {
+            "title": test.get("title") or "Teacher Oral Exam",
+            "questions": test.get("questions") or [],
+            "test_id": test.get("test_id"),
+        }
+        name = f"{name}-{test.get('test_id', 'teacher-exam')}"
+
     scns = [{"scenario": sid} for sid in _ai_scenario_ids()]
     if not scns:
         return {"ok": False, "reason": "No AI scenario configured."}
     body = {"scenarios": scns, "frequency": 1, "name": name}
+    if session_config:
+        body["session_config"] = session_config
     async with aiohttp.ClientSession() as http:
         async with http.post(
             f"{CEKURA_BASE}/v1/scenarios/run_scenarios_pipecat_v2/",
@@ -437,7 +448,8 @@ async def start_ai_run(name: str = "ai-student") -> dict[str, Any]:
         state = load_state()
         state["last_ai_run_id"] = rid
         STATE_PATH.write_text(json.dumps(state, indent=2))
-    return {"ok": bool(rid), "run_id": rid}
+    question_count = len(session_config["questions"]) if session_config else None
+    return {"ok": bool(rid), "run_id": rid, "question_count": question_count}
 
 
 async def ai_samples_from_run(run_id: int) -> list[dict[str, Any]]:

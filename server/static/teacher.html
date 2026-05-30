@@ -31,6 +31,8 @@
   .drop{border:2px dashed var(--line);border-radius:14px;padding:34px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
   .drop:hover,.drop.drag{border-color:var(--blue);background:rgba(59,130,246,.05)}
   .drop .big{font-size:16px;font-weight:700} .drop .sm{font-size:12.5px;color:var(--faint);margin-top:6px}
+  .opts{display:flex;align-items:center;gap:10px;margin:0 0 14px;color:var(--dim);font-size:13px}
+  .opts select{background:#0c0c0f;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:700 13px var(--mono);outline:none}
   .status{font-family:var(--mono);font-size:12.5px;color:var(--dim);margin-top:10px;min-height:16px}
   .spark{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--emerald);margin-right:7px;animation:pulse 1.4s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 7px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
@@ -163,6 +165,14 @@
 
   <div class="card" id="uploadCard">
     <h2><span class="num">1</span> Upload your exam material</h2>
+    <label class="opts">Questions on quiz
+      <select id="numQuestions">
+        <option value="3" selected>3 fast demo</option>
+        <option value="5">5 normal</option>
+        <option value="8">8 longer</option>
+        <option value="10">10 max</option>
+      </select>
+    </label>
     <div class="drop" id="drop">
       <div class="big">📄 Drop a PDF here, or click to choose</div>
       <div class="sm">We'll read it and generate spoken oral-exam questions.</div>
@@ -263,7 +273,7 @@ file.onchange=()=>{if(file.files[0])upload(file.files[0])};
 
 async function upload(f){
   $("upStatus").innerHTML=`<span class="spark"></span>Reading PDF and generating questions…`;
-  const fd=new FormData(); fd.append("file",f);
+  const fd=new FormData(); fd.append("file",f); fd.append("num_questions",$("numQuestions").value||"3");
   try{
     const r=await fetch("/api/teacher/upload",{method:"POST",body:fd});
     if(!r.ok) throw new Error((await r.json()).detail||r.statusText);
@@ -384,7 +394,7 @@ $("stressBtn").onclick=async()=>{
   t0=Date.now(); if(elapsedTimer)clearInterval(elapsedTimer);
   elapsedTimer=setInterval(()=>{ $("elapsedV").textContent=((Date.now()-t0)/1000).toFixed(1)+"s"; },100);
   logLine("system","Launching stress test…");
-  let r; try{ r=await (await fetch("/api/training/run-ai",{method:"POST"})).json(); }
+  let r; try{ r=await (await fetch("/api/training/run-ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({test_id:TEST_ID})})).json(); }
   catch(e){ logLine("system","ERROR: "+e); setPill("error",false); rmThinking(); $("stressBtn").disabled=false; return; }
   if(!r.ok){ logLine("system","ERROR: "+(r.reason||"start failed")); setPill("error",false); rmThinking(); $("stressBtn").disabled=false; return; }
   $("runV").textContent="#"+r.run_id; setPill("AI student is calling…",true); setPhase("dialing");

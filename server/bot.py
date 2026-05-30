@@ -51,6 +51,10 @@ DEFAULT_EXAM = {
 def _session_from_body(body: dict | None, session_id: str | None):
     """Resolve (or build) the ProctorSession for a cloud/Cekura session."""
     body = body or {}
+    # Cekura's Pipecat v2 runner can send per-run overrides under session_config.
+    # Locally/Pipecat may pass the same keys at top level, so support both.
+    if isinstance(body.get("session_config"), dict):
+        body = {**body, **body["session_config"]}
     sid = session_id or body.get("session_id") or uuid.uuid4().hex[:12]
     existing = get_session(sid)
     if existing:
