@@ -51,6 +51,7 @@ from training_observer import (
     human_voice_stats,
     next_human_sample,
     next_train_question,
+    pending_sim,
     record_human_label,
     run_snapshot,
     start_ai_run,
@@ -185,6 +186,32 @@ async def api_get_test(test_id: str):
         raise HTTPException(404, "Unknown test")
     return {"test_id": test_id, "title": test["title"],
             "questions": test["questions"], "num_questions": len(test["questions"])}
+
+
+@app.get("/api/bot/exam/{session_id}")
+async def api_bot_exam(session_id: str, request: Request):
+    """Pipecat Cloud pulls the teacher's exam for a Cekura sim session."""
+    if _LIVE_TOKEN and request.headers.get("x-relay-token") != _LIVE_TOKEN:
+        raise HTTPException(403, "bad relay token")
+    session = get_session(session_id)
+    if session is None:
+        raise HTTPException(404, "Unknown session")
+    return {
+        "session_id": session_id,
+        "title": session.title,
+        "questions": session.questions,
+        "test_id": session.test_id,
+        "num_questions": len(session.questions),
+    }
+
+
+@app.get("/api/bot/pending-sim")
+async def api_bot_pending_sim():
+    """Fallback when Cekura drops session_config — returns the latest registered sim."""
+    sim = pending_sim()
+    if sim is None:
+        raise HTTPException(404, "No pending sim")
+    return sim
 
 
 @app.post("/api/test/{test_id}/start")

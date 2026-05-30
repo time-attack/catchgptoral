@@ -48,6 +48,8 @@ from tune_detection import (
 CEKURA_BASE = "https://api.cekura.ai/test_framework"
 STATE_PATH = Path(__file__).parent / "cekura_state.json"
 HUMAN_LABELS_PATH = Path(__file__).parent / "human_labels.json"
+_PENDING_SIM: dict[str, Any] | None = None
+_PENDING_SIM_AT: float = 0.0
 HUMAN_VOICE_PATH = Path(__file__).parent / "human_voice_samples.json"
 
 # Clear AI / "ChatGPT student" answers to the same questions the human fixtures
@@ -412,6 +414,24 @@ async def training_event_stream(run_id: int):
 # --- run control (start a fresh pair of simulations, then tune) ----------
 
 
+def register_pending_sim(session_id: str, title: str, questions: list[str], test_id: str | None) -> None:
+    """Latest Cekura sim exam — bot pulls this if Pipecat start payload drops config."""
+    global _PENDING_SIM, _PENDING_SIM_AT
+    _PENDING_SIM = {
+        "session_id": session_id,
+        "title": title,
+        "questions": questions,
+        "test_id": test_id,
+    }
+    _PENDING_SIM_AT = time.time()
+
+
+def pending_sim(max_age_secs: float = 180.0) -> dict[str, Any] | None:
+    if not _PENDING_SIM or time.time() - _PENDING_SIM_AT > max_age_secs:
+        return None
+    return dict(_PENDING_SIM)
+
+
 def _ai_scenario_ids() -> list[int]:
     """Only the AI/cheat scenarios — we no longer simulate a 'human' (an AI
     pretending to be human is bad human-class data). The human class comes from
@@ -423,23 +443,44 @@ def _ai_scenario_ids() -> list[int]:
 
 async def start_ai_run(name: str = "ai-student", test: dict[str, Any] | None = None) -> dict[str, Any]:
     """Send ONE simulated AI student to take the teacher's exam."""
-    session_config = None
-    if test:
-        session_config = {
-            "title": test.get("title") or "Teacher Oral Exam",
-            "questions": test.get("questions") or [],
-            "test_id": test.get("test_id"),
-        }
-        name = f"{name}-{test.get('test_id', 'teacher-exam')}"
+    if not test or not test.get("questions"):
+        return {"ok": False, "reason": "No uploaded test selected or test has no questions."}
+
+    from exam_store import create_session
+    import uuid as _uuid
+
+    session_id = _uuid.uuid4().hex[:12]
+    title = test.get("title") or "Teacher Oral Exam"
+    questions = test.get("questions") or []
+    test_id = test.get("test_id")
+    # Pipecat Cloud runs on a separate worker — register the exam on Railway so
+    # bot.py can pull the exact teacher packet even when Cekura drops session_config.
+    create_session(session_id, title, questions, test_id=test_id)
+    register_pending_sim(session_id, title, questions, test_id)
+
+    session_config = {
+        "session_id": session_id,
+        "title": title,
+        "questions": questions,
+        "test_id": test_id,
+    }
+    name = f"{name}-{test_id or 'teacher-exam'}"
 
     scns = [{"scenario": sid} for sid in _ai_scenario_ids()]
     if not scns:
         return {"ok": False, "reason": "No AI scenario configured."}
-    body = {"scenarios": scns, "frequency": 1, "name": name}
-    if session_config:
-        body["session_config"] = session_config
-        for scenario in scns:
-            scenario["publish_data_message"] = session_config
+    body = {
+        "scenarios": scns,
+        "frequency": 1,
+        "name": name,
+        "session_config": session_config,
+        "session_id": session_id,
+        "title": title,
+        "questions": questions,
+        "test_id": test_id,
+    }
+    for scenario in scns:
+        scenario["publish_data_message"] = session_config
     async with aiohttp.ClientSession() as http:
         async with http.post(
             f"{CEKURA_BASE}/v1/scenarios/run_scenarios_pipecat_v2/",
@@ -452,8 +493,14 @@ async def start_ai_run(name: str = "ai-student", test: dict[str, Any] | None = N
         state = load_state()
         state["last_ai_run_id"] = rid
         STATE_PATH.write_text(json.dumps(state, indent=2))
-    question_count = len(session_config["questions"]) if session_config else None
-    return {"ok": bool(rid), "run_id": rid, "question_count": question_count}
+    question_count = len(questions)
+    return {
+        "ok": bool(rid),
+        "run_id": rid,
+        "session_id": session_id,
+        "test_id": test_id,
+        "question_count": question_count,
+    }
 
 
 async def ai_samples_from_run(run_id: int) -> list[dict[str, Any]]:
