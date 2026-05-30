@@ -34,5 +34,222 @@
     },
     "new_threshold": 0.15,
     "new_followup_aggressiveness": "medium"
+  },
+  {
+    "ts": 1780168421.117449,
+    "n_samples": 16,
+    "sources": [
+      "gpt_cheat",
+      "human_fixture"
+    ],
+    "before": {
+      "threshold": 0.7,
+      "accuracy": 0.812,
+      "precision": 1.0,
+      "recall": 0.625,
+      "f1": 0.769,
+      "fpr": 0.0,
+      "fnr": 0.375,
+      "tp": 5,
+      "fp": 0,
+      "tn": 8,
+      "fn": 3
+    },
+    "after": {
+      "threshold": 0.05,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "fpr": 0.0,
+      "fnr": 0.0,
+      "tp": 8,
+      "fp": 0,
+      "tn": 8,
+      "fn": 0
+    },
+    "new_threshold": 0.05,
+    "new_followup_aggressiveness": "medium"
+  },
+  {
+    "ts": 1780169469.015987,
+    "n_samples": 2,
+    "sources": [
+      "cekura:cheat-scripted-ai",
+      "cekura:honest-student"
+    ],
+    "before": {
+      "threshold": 0.05,
+      "accuracy": 0.5,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.667,
+      "fpr": 1.0,
+      "fnr": 0.0,
+      "tp": 1,
+      "fp": 1,
+      "tn": 0,
+      "fn": 0
+    },
+    "after": {
+      "threshold": 0.7,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "fpr": 0.0,
+      "fnr": 0.0,
+      "tp": 1,
+      "fp": 0,
+      "tn": 1,
+      "fn": 0
+    },
+    "new_threshold": 0.7,
+    "new_followup_aggressiveness": "medium"
+  },
+  {
+    "ts": 1780169881.306227,
+    "n_samples": 2,
+    "sources": [
+      "cekura:cheat-scripted-ai",
+      "cekura:honest-student"
+    ],
+    "before": {
+      "threshold": 0.7,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "fpr": 0.0,
+      "fnr": 0.0,
+      "tp": 1,
+      "fp": 0,
+      "tn": 1,
+      "fn": 0
+    },
+    "after": {
+      "threshold": 0.7,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "fpr": 0.0,
+      "fnr": 0.0,
+      "tp": 1,
+      "fp": 0,
+      "tn": 1,
+      "fn": 0
+    },
+    "new_threshold": 0.7,
+    "new_followup_aggressiveness": "medium",
+    "run_id": 591179
+  },
+  {
+    "ts": 1780170766.648575,
+    "n_samples": 2,
+    "sources": [
+      "cekura:cheat-scripted-ai",
+      "cekura:honest-student"
+    ],
+    "before": {
+      "threshold": 0.7,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "fpr": 0.0,
+      "fnr": 0.0,
+      "tp": 1,
+      "fp": 0,
+      "tn": 1,
+      "fn": 0
+    },
+    "after": {
+      "threshold": 0.7,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "fpr": 0.0,
+      "fnr": 0.0,
+      "tp": 1,
+      "fp": 0,
+      "tn": 1,
+      "fn": 0
+    },
+    "new_threshold": 0.7,
+    "new_followup_aggressiveness": "medium"
+  },
+  {
+    "ts": 1780172339.395398,
+    "n_samples": 7,
+    "sources": [
+      "cekura:cheat-scripted-ai",
+      "human_voice"
+    ],
+    "before": {
+      "threshold": 0.7,
+      "accuracy": 0.571,
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1": 0.667,
+      "fpr": 0.0,
+      "fnr": 0.5,
+      "tp": 3,
+      "fp": 0,
+      "tn": 1,
+      "fn": 3
+    },
+    "after": {
+      "threshold": 0.05,
+      "accuracy": 0.714,
+      "precision": 0.833,
+      "recall": 0.833,
+      "f1": 0.833,
+      "fpr": 1.0,
+      "fnr": 0.167,
+      "tp": 5,
+      "fp": 1,
+      "tn": 0,
+      "fn": 1
+    },
+    "new_threshold": 0.05,
+    "new_followup_aggressiveness": "medium"
+  },
+  {
+    "ts": 1780172410.3625972,
+    "n_samples": 8,
+    "sources": [
+      "cekura:cheat-scripted-ai",
+      "human_voice"
+    ],
+    "before": {
+      "threshold": 0.05,
+      "accuracy": 0.625,
+      "precision": 0.833,
+      "recall": 0.714,
+      "f1": 0.769,
+      "fpr": 1.0,
+      "fnr": 0.286,
+      "tp": 5,
+      "fp": 1,
+      "tn": 0,
+      "fn": 2
+    },
+    "after": {
+      "threshold": 0.05,
+      "accuracy": 0.625,
+      "precision": 0.833,
+      "recall": 0.714,
+      "f1": 0.769,
+      "fpr": 1.0,
+      "fnr": 0.286,
+      "tp": 5,
+      "fp": 1,
+      "tn": 0,
+      "fn": 2
+    },
+    "new_threshold": 0.05,
+    "new_followup_aggressiveness": "high"
   }
 ]

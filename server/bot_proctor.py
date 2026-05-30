@@ -171,6 +171,122 @@ class UserAnswerProbe(FrameProcessor):
         )
 
 
+async def commit_answer(session: ProctorSession, http_session: aiohttp.ClientSession) -> dict | None:
+    """Score + COMMIT the current question's answer (shared by the 'Done Speaking'
+    button and the cloud auto-advance watcher). Mirrors the live scoring: re-score
+    the full finalized answer; fall back to the provisional live_score if the text
+    is too short. Emits the committed 'suspicion' event. Returns the commit or None.
+    """
+    record = session.current_record
+    if record is None:
+        return None
+    text = record.combined_text
+    source = "committed"
+    if len(text.strip()) >= 1:
+        result = await detect_ai(text, http_session)
+        if result["source"] != "too_short":
+            record.combined_score = result["score"]
+            source = result["source"]
+        elif record.live_score is not None:
+            record.combined_score = record.live_score
+        else:
+            record.combined_score = result["score"]
+            source = result["source"]
+    elif record.live_score is not None:
+        record.combined_score = record.live_score
+    else:
+        return None
+
+    record.detector_source = source
+    record.turn_scores.append(record.combined_score)
+    logger.info(f"[q{record.index}] COMMITTED score={record.combined_score:.2f} via {source}")
+    session.emit(
+        "suspicion",
+        {
+            "index": record.index,
+            "combined_score": round(record.combined_score, 3),
+            "detector_source": source,
+            "overall_score": round(session.overall_score, 3)
+            if session.overall_score is not None
+            else None,
+            "question": record.to_dict(),
+        },
+    )
+    return {"index": record.index, "combined_score": record.combined_score}
+
+
+class AutoAdvanceWatcher(FrameProcessor):
+    """Cloud / automated-testing path ONLY: advances the exam with no button.
+
+    The local browser exam is button-driven ("Done Speaking"). But an automated
+    caller (e.g. a Cekura simulated student) can't click — so without this the bot
+    reads Q1, goes silent, and the call dies on a silence timeout. This watcher
+    listens after the examiner finishes a question: once the student has given a
+    real answer and then gone quiet for `silence_secs`, it commits the score and
+    speaks the next question. Gated off (`auto_advance=False`) for the local UI.
+    """
+
+    def __init__(self, session, http_session, get_controller, silence_secs, min_words):
+        super().__init__()
+        self._session = session
+        self._http = http_session
+        self._get_controller = get_controller
+        self._silence = silence_secs
+        self._min_words = min_words
+        self._bot_speaking = False
+        self._spoke = False  # student gave real speech since the question was read
+        self._timer: asyncio.Task | None = None
+        self._advancing = False
+
+    def _cancel(self) -> None:
+        if self._timer and not self._timer.done():
+            self._timer.cancel()
+        self._timer = None
+
+    def _arm(self) -> None:
+        self._cancel()
+        self._timer = asyncio.create_task(self._fire())
+
+    async def _fire(self) -> None:
+        try:
+            await asyncio.sleep(self._silence)
+        except asyncio.CancelledError:
+            return
+        if self._bot_speaking or self._advancing:
+            return
+        record = self._session.current_record
+        if record is None or not self._spoke:
+            return
+        if len(record.combined_text.split()) < self._min_words:
+            return  # too little to be a real answer (ignore "hello?" / probes)
+        self._advancing = True
+        try:
+            await commit_answer(self._session, self._http)
+            controller = self._get_controller()
+            if controller is not None:
+                logger.info(f"[auto-advance] q{record.index} answered + silent — next question")
+                await controller.next_question()
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"auto-advance failed: {e}")
+        finally:
+            self._spoke = False
+            self._advancing = False
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, BotStartedSpeakingFrame):
+            self._bot_speaking = True
+            self._cancel()  # don't advance while the examiner is talking
+        elif isinstance(frame, BotStoppedSpeakingFrame):
+            self._bot_speaking = False
+            self._spoke = False  # start a fresh listening window for this question
+        elif isinstance(frame, (InterimTranscriptionFrame, TranscriptionFrame)):
+            if getattr(frame, "text", "").strip() and not self._bot_speaking:
+                self._spoke = True
+                self._arm()  # (re)start the silence countdown on every utterance
+        await self.push_frame(frame, direction)
+
+
 class BotStateProbe(FrameProcessor):
     """Emits turn-state events so the UI can show 'Examiner speaking' vs 'Your
     turn'. Placed just before the output transport, which pushes
@@ -188,6 +304,51 @@ class BotStateProbe(FrameProcessor):
         elif isinstance(frame, BotStoppedSpeakingFrame):
             self._session.emit("bot_speaking", {"speaking": False})
         await self.push_frame(frame, direction)
+
+
+async def _relay_forwarder(session: ProctorSession, http: aiohttp.ClientSession) -> asyncio.Task | None:
+    """Stream this session's LIVE events out to the public relay so the teacher
+    dashboard can watch the cloud call in real time (Cekura only delivers the
+    transcript after the call ends). No-op unless LIVE_RELAY_URL is set, so the
+    local browser path is unaffected.
+    """
+    url = os.getenv("LIVE_RELAY_URL")
+    if not url:
+        return None
+    base = url.rstrip("/")
+    channel = os.getenv("LIVE_RELAY_CHANNEL", "stress")
+    token = os.getenv("LIVE_RELAY_TOKEN")
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["X-Relay-Token"] = token
+
+    async def post(event: dict) -> None:
+        try:
+            async with http.post(
+                f"{base}/api/live/push/{channel}", json=event, headers=headers, timeout=8
+            ):
+                pass
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"relay push failed: {e}")
+
+    # Clear any prior run's backlog, then announce this exam.
+    await post({"type": "reset"})
+    await post({"type": "meta", "title": session.title, "total": len(session.questions)})
+
+    queue = session.subscribe()
+
+    async def pump() -> None:
+        try:
+            while True:
+                event = await queue.get()
+                await post(event)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            session.unsubscribe(queue)
+
+    logger.info(f"[relay] forwarding session {session.session_id} -> {base}/push/{channel}")
+    return asyncio.create_task(pump())
 
 
 def _build_stt(backend: str):
@@ -221,9 +382,10 @@ class ExamController:
     one. This is what makes the bot un-interruptible and one-turn-per-question.
     """
 
-    def __init__(self, session: ProctorSession, worker: PipelineWorker):
+    def __init__(self, session: ProctorSession, worker: PipelineWorker, auto_advance: bool = False):
         self._session = session
         self._worker = worker
+        self._auto = auto_advance
 
     async def _speak(self, text: str) -> None:
         await self._worker.queue_frames([TTSSpeakFrame(text)])
@@ -248,11 +410,20 @@ class ExamController:
         if record is None:
             return
         self._announce(record)
-        await self._speak(
-            f"Welcome to your oral exam. There are {n} questions. Answer each one out "
-            "loud in your own words; take your time, and click Done Speaking when you "
-            f"finish. Question 1. {record.question}"
-        )
+        if self._auto:
+            # Voice-only / automated caller: no button exists. Cue them to answer
+            # now, and to just pause when finished — the bot advances on silence.
+            await self._speak(
+                f"Welcome to your oral exam. There are {n} questions. Answer each one out "
+                "loud in your own words. When you finish an answer, just pause for a moment "
+                f"and I'll move on. Here is question one. {record.question}"
+            )
+        else:
+            await self._speak(
+                f"Welcome to your oral exam. There are {n} questions. Answer each one out "
+                "loud in your own words; take your time, and click Done Speaking when you "
+                f"finish. Question 1. {record.question}"
+            )
 
     async def next_question(self) -> None:
         record = self._session.advance()
@@ -278,14 +449,21 @@ class ExamController:
         await self._speak(f"Question {record.index + 1}. {record.question}")
 
 
-async def run_bot(transport: BaseTransport, session: ProctorSession):
+async def run_bot(transport: BaseTransport, session: ProctorSession, auto_advance: bool = False):
     """Main proctor bot logic for a single exam session.
 
-    Button-driven: STT + live detection while the student speaks, no LLM in the
-    loop, so the bot can't barge in. The VAD only segments speech for the
-    transcript (Gradium flushes on pause). Progression is via "Done Speaking".
+    Button-driven by default: STT + live detection while the student speaks, no
+    LLM in the loop, so the bot can't barge in. Progression is via "Done Speaking".
+
+    When `auto_advance=True` (the cloud / automated-testing path, e.g. Cekura),
+    there's no button, so an AutoAdvanceWatcher moves to the next question once the
+    student has answered and gone quiet. The local browser UI keeps auto_advance
+    off so its one-turn-per-question, no-interruption behaviour is unchanged.
     """
-    logger.info(f"Starting proctor bot for session {session.session_id} ({session.title})")
+    logger.info(
+        f"Starting proctor bot for session {session.session_id} ({session.title}); "
+        f"auto_advance={auto_advance}"
+    )
 
     http_session = aiohttp.ClientSession()
 
@@ -330,17 +508,20 @@ async def run_bot(transport: BaseTransport, session: ProctorSession):
     user_probe = UserAnswerProbe(session, http_session)
     bot_state_probe = BotStateProbe(session)
 
-    pipeline = Pipeline(
-        [
-            transport.input(),
-            stt,
-            user_probe,
-            user_aggregator,
-            tts,
-            bot_state_probe,
-            transport.output(),
-        ]
-    )
+    processors = [transport.input(), stt, user_probe]
+    if auto_advance:
+        # No button on the automated path — advance on answer-then-silence.
+        processors.append(
+            AutoAdvanceWatcher(
+                session,
+                http_session,
+                get_controller=lambda: CONTROLLERS.get(session.session_id),
+                silence_secs=float(os.getenv("AUTO_ADVANCE_SILENCE_SECS", "2.5")),
+                min_words=int(os.getenv("AUTO_ADVANCE_MIN_WORDS", "6")),
+            )
+        )
+    processors += [user_aggregator, tts, bot_state_probe, transport.output()]
+    pipeline = Pipeline(processors)
 
     worker = PipelineWorker(
         pipeline,
@@ -352,8 +533,13 @@ async def run_bot(transport: BaseTransport, session: ProctorSession):
         ),
     )
 
-    controller = ExamController(session, worker)
+    controller = ExamController(session, worker, auto_advance=auto_advance)
     CONTROLLERS[session.session_id] = controller
+
+    # Live relay (cloud/Cekura path): stream the bot's own transcript out to the
+    # teacher dashboard as it happens. Started before connect so it captures the
+    # opening "connected"/question events. No-op unless LIVE_RELAY_URL is set.
+    relay_task = await _relay_forwarder(session, http_session)
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
@@ -366,6 +552,8 @@ async def run_bot(transport: BaseTransport, session: ProctorSession):
     async def on_client_disconnected(transport, client):
         logger.info(f"Student disconnected from session {session.session_id}")
         CONTROLLERS.pop(session.session_id, None)
+        if relay_task is not None:
+            relay_task.cancel()
         await http_session.close()
         await worker.cancel()
 

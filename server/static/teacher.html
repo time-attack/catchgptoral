@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CatchGPT — Oral Exam Generator for Teachers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#09090b;--panel:#111114;--line:#232329;--ink:#ededf0;--dim:#a1a1aa;--faint:#6b6b75;
+    --blue:#3b82f6;--emerald:#10b981;--rose:#f43f5e;--violet:#8b5cf6;--amber:#f59e0b;
+    --mono:"JetBrains Mono",monospace;--sans:"Satoshi",-apple-system,system-ui,sans-serif}
+  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans)}
+  body{background-image:radial-gradient(1100px 520px at 50% -10%,rgba(59,130,246,.10),transparent 60%);min-height:100vh}
+  .wrap{max-width:880px;margin:0 auto;padding:30px 22px 80px}
+  a{color:var(--blue);text-decoration:none}
+  .head{text-align:center;margin-bottom:24px}
+  .badge-top{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  h1{font-size:28px;font-weight:900;letter-spacing:-.025em;margin:8px 0}
+  .lede{color:var(--dim);font-size:15px;max-width:620px;margin:0 auto;line-height:1.55}
+
+  .steps{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:18px 0 22px}
+  .stepchip{font-size:12.5px;color:var(--dim);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 14px}
+  .stepchip b{color:var(--ink)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:16px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  .num{font-family:var(--mono);font-weight:700;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;background:rgba(59,130,246,.16);color:#93c5fd;font-size:11px}
+
+  .drop{border:2px dashed var(--line);border-radius:14px;padding:34px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+  .drop:hover,.drop.drag{border-color:var(--blue);background:rgba(59,130,246,.05)}
+  .drop .big{font-size:16px;font-weight:700} .drop .sm{font-size:12.5px;color:var(--faint);margin-top:6px}
+  .status{font-family:var(--mono);font-size:12.5px;color:var(--dim);margin-top:10px;min-height:16px}
+  .spark{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--emerald);margin-right:7px;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 7px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+
+  ol.q{margin:0;padding-left:0;list-style:none;counter-reset:q}
+  ol.q li{display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14.5px;line-height:1.45}
+  ol.q li .qn{font-family:var(--mono);color:var(--faint);font-size:12px;flex:none;width:22px}
+
+  .btn{font-family:var(--sans);font-weight:800;border:0;border-radius:12px;padding:13px 20px;font-size:15px;cursor:pointer;transition:transform .06s,filter .15s}
+  .btn:active{transform:translateY(1px)} .btn:disabled{opacity:.55;cursor:not-allowed}
+  .btn.primary{background:#fafafa;color:#0a0a0a} .btn.violet{background:var(--violet);color:#fff} .btn.ghost{background:#0c0c0f;color:var(--ink);border:1px solid var(--line)}
+
+  .linkrow{display:flex;gap:10px;align-items:center;background:#0c0c0f;border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-top:6px}
+  .linkrow input{flex:1;background:transparent;border:0;color:var(--ink);font-family:var(--mono);font-size:13px;outline:none}
+
+  .feed{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;font-size:13px;margin-top:10px}
+  .feed .ev{border:1px solid var(--line);border-left-width:3px;border-radius:9px;padding:7px 11px;background:#0c0c0f;line-height:1.45;animation:rise .25s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .feed .ev .tm{font-family:var(--mono);font-size:10px;color:var(--faint);margin-right:7px}
+  .feed .ev.exm{border-left-color:#64748b} .feed .ev.stu{border-left-color:var(--violet)}
+  .feed .ev.judge{border-left-color:var(--amber)} .feed .ev.status{border-left-color:var(--faint);color:var(--dim);font-family:var(--mono);font-size:11.5px}
+  .feed .ev .spk{font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--faint);margin-right:6px}
+  .verdict{margin-top:10px;font-size:14px;font-weight:700}
+
+  table.res{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.res th,table.res td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}
+  table.res th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);font-weight:600}
+  .pill{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:6px}
+  .pill.high{background:rgba(244,63,94,.16);color:#fda4af} .pill.medium{background:rgba(245,158,11,.16);color:#fcd34d} .pill.low{background:rgba(16,185,129,.16);color:#6ee7b7}
+  .hidden{display:none}
+
+  /* ---- Stress-test modal (liquid-glass, live feed) ---- */
+  .overlay{position:fixed;inset:0;z-index:100;display:none;place-items:center;padding:18px;
+    background:rgba(9,9,11,.74);backdrop-filter:blur(10px) saturate(140%);opacity:0;transition:opacity .25s ease}
+  .overlay.open{display:grid;opacity:1}
+  .modal{width:min(1040px,97vw);max-height:92vh;display:grid;grid-template-rows:auto auto 1fr;overflow:hidden;
+    background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 26%),#0e0e12;
+    border:1px solid var(--line);border-radius:24px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 40px 90px -30px rgba(0,0,0,.85);
+    transform:translateY(18px) scale(.985);opacity:0;transition:transform .4s cubic-bezier(.16,1,.3,1),opacity .35s}
+  .overlay.open .modal{transform:none;opacity:1}
+  .mhead{position:relative;padding:20px 24px;border-bottom:1px solid var(--line);
+    background:radial-gradient(620px 220px at 82% -60%,rgba(139,92,246,.16),transparent)}
+  .mtitle{font-size:20px;font-weight:900;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+  .msub{font-size:13px;color:var(--dim);margin-top:4px;max-width:60ch}
+  .livepill{position:absolute;top:20px;right:60px;font-family:var(--mono);font-size:11px;display:flex;align-items:center;gap:7px;
+    padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#0c0c0f;color:var(--dim)}
+  .livepill .d{width:7px;height:7px;border-radius:50%;background:var(--emerald);animation:breathe 1.5s infinite}
+  @keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.55);opacity:1}50%{box-shadow:0 0 0 6px rgba(16,185,129,0);opacity:.55}}
+  .mclose{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);
+    background:#0c0c0f;color:var(--dim);cursor:pointer;font-size:14px;transition:transform .06s,color .15s}
+  .mclose:hover{color:var(--ink)} .mclose:active{transform:scale(.93)}
+  /* metrics strip */
+  .mstrip{display:flex;align-items:center;gap:16px;padding:12px 22px;border-bottom:1px solid var(--line);background:#0b0b0e;flex-wrap:wrap}
+  .ring{position:relative;width:74px;height:74px;flex:none}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .trk{stroke:#26262c}
+  .ring .prog{stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.16,1,.3,1),stroke .4s}
+  .ring .num{position:absolute;inset:0;width:100%;height:100%;background:none;border-radius:0;display:grid;place-items:center;font-family:var(--mono);font-size:15px;font-weight:700}
+  .mstack{display:flex;flex-direction:column;gap:2px;min-width:50px}
+  .mstack .mk{font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+  .mstack .mv{font-family:var(--mono);font-size:14px;font-weight:700}
+  .msep{width:1px;align-self:stretch;background:var(--line)}
+  .vbig{font-family:var(--sans);font-weight:900;font-size:14px;color:var(--dim);transition:color .3s}
+  .vbig.caught{color:#6ee7b7} .vbig.missed{color:#fcd34d}
+  /* dual panes: conversation + system log */
+  .mbody{display:grid;grid-template-columns:1fr 1fr;min-height:0}
+  @media(max-width:760px){.mbody{grid-template-columns:1fr}}
+  .pane{display:grid;grid-template-rows:auto 1fr;min-height:0;border-left:1px solid var(--line)}
+  .pane:first-child{border-left:0}
+  @media(max-width:760px){.pane:first-child{border-bottom:1px solid var(--line)}}
+  .panehd{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);padding:11px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .panehd .layers{font-family:var(--mono);font-size:9.5px;text-transform:none;letter-spacing:0;color:var(--faint)}
+  .playbtn{font-family:var(--mono);font-size:10px;font-weight:700;text-transform:none;letter-spacing:0;
+    background:rgba(139,92,246,.16);color:#c4b5fd;border:1px solid rgba(139,92,246,.34);border-radius:7px;
+    padding:3px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:background .2s,opacity .2s}
+  .playbtn:hover{background:rgba(139,92,246,.28)}
+  .playbtn:disabled{opacity:.45;cursor:default}
+  .playbtn.loading{opacity:.6;cursor:wait}
+  .chat .placeholder{align-self:center;margin:auto 0;text-align:center;color:var(--faint);font-size:12.5px;line-height:1.6;max-width:80%}
+  .chat .placeholder .ph-emoji{font-size:26px;display:block;margin-bottom:8px;opacity:.8}
+  .console{padding:10px 14px;overflow-y:auto;font-family:var(--mono);font-size:11.5px;line-height:1.65;min-height:0;max-height:48vh}
+  .console::-webkit-scrollbar{width:8px}.console::-webkit-scrollbar-thumb{background:#2a2a31;border-radius:8px}
+  .logln{display:flex;gap:8px;padding:2px 0;animation:logfade .2s ease both}
+  @keyframes logfade{from{opacity:0;transform:translateX(-3px)}to{opacity:1;transform:none}}
+  .logln .lt{color:#4b4b53;flex:none}
+  .logln .lb{flex:none;text-transform:uppercase;font-size:9px;font-weight:700;padding:0 5px;border-radius:4px;height:15px;line-height:15px;align-self:center}
+  .lb.cekura{background:rgba(59,130,246,.16);color:#93c5fd}
+  .lb.pipecat{background:rgba(139,92,246,.18);color:#c4b5fd}
+  .lb.exam{background:rgba(245,158,11,.16);color:#fcd34d}
+  .lb.detector{background:rgba(16,185,129,.16);color:#6ee7b7}
+  .lb.system{background:#26262c;color:var(--dim)}
+  .logln .lm{color:var(--ink);word-break:break-word}
+  .chat{padding:18px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:13px;min-height:0}
+  .chat::-webkit-scrollbar{width:8px}.chat::-webkit-scrollbar-thumb{background:#2a2a31;border-radius:8px}
+  .turn{display:flex;gap:10px;max-width:88%;animation:turnin .45s cubic-bezier(.16,1,.3,1) both}
+  @keyframes turnin{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .turn.exm{align-self:flex-start}.turn.stu{align-self:flex-end;flex-direction:row-reverse}
+  .av{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:17px;flex:none}
+  .turn.exm .av{background:rgba(100,116,139,.2)}.turn.stu .av{background:rgba(139,92,246,.22)}
+  .bub{padding:10px 13px;border-radius:15px;font-size:13.5px;line-height:1.5;border:1px solid var(--line)}
+  .turn.exm .bub{background:#131318;border-top-left-radius:5px}
+  .turn.stu .bub{background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.28);border-top-right-radius:5px}
+  .bub .nm{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);margin-bottom:3px}
+  .turn.live .bub{border-color:rgba(139,92,246,.5)}
+  .turn.live .bub .txt::after{content:"▋";color:#c4b5fd;animation:caret 1s steps(1) infinite}
+  @keyframes caret{50%{opacity:0}}
+  .thinking{align-self:flex-start;display:flex;gap:5px;padding:11px 14px;background:#131318;border:1px solid var(--line);border-radius:15px;border-top-left-radius:5px}
+  .thinking i{width:7px;height:7px;border-radius:50%;background:var(--faint);animation:td 1.1s infinite}
+  .thinking i:nth-child(2){animation-delay:.15s}.thinking i:nth-child(3){animation-delay:.3s}
+  @keyframes td{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+  .foot{display:flex;gap:14px;justify-content:center;margin-top:22px;font-size:13.5px}
+  .foot a{background:var(--panel);border:1px solid var(--line);padding:9px 15px;border-radius:10px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="badge-top">CatchGPT · for teachers</div>
+    <h1>Turn any PDF into a spoken oral exam</h1>
+    <p class="lede">Oral exams are the one test ChatGPT can't beat — but they don't scale. Upload your material, we generate the exam, you stress-test it against AI cheaters, then share one link with your whole class.</p>
+  </div>
+
+  <div class="steps">
+    <span class="stepchip"><b>1.</b> Upload PDF</span>
+    <span class="stepchip"><b>2.</b> Stress-test vs AI</span>
+    <span class="stepchip"><b>3.</b> Share link to students</span>
+    <span class="stepchip"><b>4.</b> See who cheated</span>
+  </div>
+
+  <div class="card" id="uploadCard">
+    <h2><span class="num">1</span> Upload your exam material</h2>
+    <div class="drop" id="drop">
+      <div class="big">📄 Drop a PDF here, or click to choose</div>
+      <div class="sm">We'll read it and generate spoken oral-exam questions.</div>
+    </div>
+    <input type="file" id="file" accept="application/pdf" style="display:none" />
+    <div class="status" id="upStatus"></div>
+  </div>
+
+  <div class="card hidden" id="qCard">
+    <h2><span class="num">2</span> Your oral exam · <span id="examTitle" style="color:var(--ink);text-transform:none;letter-spacing:0"></span></h2>
+    <ol class="q" id="qlist"></ol>
+  </div>
+
+  <div class="card hidden" id="stressCard">
+    <h2>🤖 Stress-test: send AI cheaters at it</h2>
+    <p style="font-size:13.5px;color:var(--dim);margin:0 0 14px;line-height:1.5">Before real students take it, we send a simulated <b>ChatGPT cheater</b> to take the exam by voice (via Cekura). Watch the whole thing live and see whether the proctor catches it.</p>
+    <button class="btn violet" id="stressBtn">▶ Launch stress test</button>
+  </div>
+
+  <div class="card hidden" id="linkCard">
+    <h2><span class="num">3</span> Share this link with your students</h2>
+    <div class="linkrow">
+      <input id="shareLink" readonly />
+      <button class="btn primary" id="copyBtn">Copy</button>
+    </div>
+    <p style="font-size:12.5px;color:var(--faint);margin-top:8px">Each student opens it, takes the spoken exam in their browser, and their result appears below.</p>
+  </div>
+
+  <div class="card hidden" id="resCard">
+    <h2><span class="num">4</span> Results <span id="resCount" style="color:var(--faint);font-family:var(--mono);font-size:11px"></span></h2>
+    <table class="res" id="resTable"><tr><td style="color:var(--faint)">No students have taken it yet.</td></tr></table>
+  </div>
+
+  <div class="foot">
+    <a href="/training">🧪 Detector lab</a>
+    <a href="/test">🔬 Test the detector</a>
+  </div>
+</div>
+
+<!-- Stress-test modal -->
+<div class="overlay" id="stressModal">
+  <div class="modal">
+    <div class="mhead">
+      <button class="mclose" id="mClose">✕</button>
+      <div class="livepill" id="livePill"><span class="d"></span> connecting…</div>
+      <div class="mtitle">🤖 AI Cheater · Live Stress Test</div>
+      <div class="msub">A ChatGPT-powered student is taking your exam by voice. Every step is shown live below.</div>
+    </div>
+
+    <div class="mstrip">
+      <div class="ring">
+        <svg width="74" height="74" viewBox="0 0 74 74">
+          <circle class="trk" cx="37" cy="37" r="31" fill="none" stroke-width="7"/>
+          <circle class="prog" id="ringProg" cx="37" cy="37" r="31" fill="none" stroke-width="7"
+                  stroke="var(--emerald)" stroke-dasharray="194.8" stroke-dashoffset="194.8"/>
+        </svg>
+        <div class="num" id="ringNum">0%</div>
+      </div>
+      <div class="mstack"><span class="mk">AI likelihood</span><span class="vbig" id="vbig">awaiting verdict</span></div>
+      <div class="msep"></div>
+      <div class="mstack"><span class="mk">phase</span><span class="mv" id="phaseV">connecting</span></div>
+      <div class="mstack"><span class="mk">elapsed</span><span class="mv" id="elapsedV">0.0s</span></div>
+      <div class="mstack"><span class="mk">questions</span><span class="mv" id="qV">0</span></div>
+      <div class="mstack"><span class="mk">cheater words</span><span class="mv" id="wV">0</span></div>
+      <div class="mstack"><span class="mk">events</span><span class="mv" id="evV">0</span></div>
+      <div class="mstack"><span class="mk">run</span><span class="mv" id="runV">—</span></div>
+    </div>
+
+    <div class="mbody">
+      <div class="pane">
+        <div class="panehd">💬 Live conversation
+          <button class="playbtn hidden" id="playBtn" title="Play the recorded audio of this exam call">▶ Play recording</button>
+        </div>
+        <div class="chat" id="chat"></div>
+        <audio id="recAudio" preload="none" style="display:none"></audio>
+      </div>
+      <div class="pane">
+        <div class="panehd">🖥 System log <span class="layers"><b style="color:#93c5fd">cekura</b> · <b style="color:#c4b5fd">pipecat</b> · <b style="color:#fcd34d">exam</b> · <b style="color:#6ee7b7">detector</b></span></div>
+        <div class="console" id="console"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function clock(ts){const d=ts?new Date(ts*1000):new Date();return d.toLocaleTimeString([],{hour12:false})}
+let TEST_ID=null, resTimer=null;
+
+// ---- Step 1: upload ----
+const drop=$("drop"),file=$("file");
+drop.onclick=()=>file.click();
+["dragover","dragenter"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add("drag")}));
+["dragleave","drop"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove("drag")}));
+drop.addEventListener("drop",ev=>{if(ev.dataTransfer.files[0])upload(ev.dataTransfer.files[0])});
+file.onchange=()=>{if(file.files[0])upload(file.files[0])};
+
+async function upload(f){
+  $("upStatus").innerHTML=`<span class="spark"></span>Reading PDF and generating questions…`;
+  const fd=new FormData(); fd.append("file",f);
+  try{
+    const r=await fetch("/api/teacher/upload",{method:"POST",body:fd});
+    if(!r.ok) throw new Error((await r.json()).detail||r.statusText);
+    const d=await r.json();
+    TEST_ID=d.test_id;
+    $("upStatus").textContent="";
+    $("examTitle").textContent=d.title;
+    $("qlist").innerHTML=d.questions.map((q,i)=>`<li><span class="qn">${i+1}</span><span>${esc(q)}</span></li>`).join("");
+    $("qCard").classList.remove("hidden");
+    $("stressCard").classList.remove("hidden");
+    $("shareLink").value=location.origin+d.student_link;
+    $("linkCard").classList.remove("hidden");
+    $("resCard").classList.remove("hidden");
+    pollResults();
+    if(resTimer) clearInterval(resTimer);
+    resTimer=setInterval(pollResults,5000);
+  }catch(e){ $("upStatus").textContent="Upload failed: "+e.message; }
+}
+
+// ---- Step 2: stress test (Cekura AI cheater) — live modal + telemetry ----
+const RING_C=194.78;  // 2*pi*31
+let curStream=null, qCount=0, wCount=0, evCount=0, gotDetection=false, t0=0, elapsedTimer=null;
+function openModal(){ $("stressModal").classList.add("open"); }
+function closeModal(){ $("stressModal").classList.remove("open"); if(curStream){curStream.close();curStream=null;} closeLiveStream(); if(elapsedTimer){clearInterval(elapsedTimer);elapsedTimer=null;} try{$("recAudio").pause();}catch(e){} $("stressBtn").disabled=false; }
+function setPill(text,live){ $("livePill").innerHTML=(live?'<span class="d"></span> ':'')+esc(text); }
+function setPhase(p){ $("phaseV").textContent=p; }
+function ringColor(s){ return s>=0.7?"var(--rose)":s>=0.4?"var(--amber)":"var(--emerald)"; }
+function setRing(s){ const p=$("ringProg"); p.style.strokeDashoffset=RING_C*(1-s); p.style.stroke=ringColor(s); $("ringNum").textContent=Math.round(s*100)+"%"; $("ringNum").style.color=ringColor(s); }
+function logLine(layer,msg,ts){
+  const c=$("console"); const d=document.createElement("div"); d.className="logln";
+  const t=(ts?new Date(ts*1000):new Date()).toLocaleTimeString([],{hour12:false});
+  d.innerHTML=`<span class="lt">${t}</span><span class="lb ${layer}">${layer}</span><span class="lm">${esc(msg)}</span>`;
+  c.appendChild(d); c.scrollTop=c.scrollHeight;
+}
+function rmThinking(){ const t=$("chat").querySelector(".thinking"); if(t)t.remove(); }
+function addThinking(){ if($("chat").querySelector(".thinking"))return; const t=document.createElement("div"); t.className="thinking"; t.innerHTML="<i></i><i></i><i></i>"; $("chat").appendChild(t); $("chat").scrollTop=$("chat").scrollHeight; }
+function setPlaceholder(html){ const c=$("chat"); let p=c.querySelector(".placeholder"); if(!p){ p=document.createElement("div"); p.className="placeholder"; c.insertBefore(p,c.firstChild); } p.innerHTML=html; }
+function rmPlaceholder(){ const p=$("chat").querySelector(".placeholder"); if(p)p.remove(); }
+// ---- live call audio (Cekura serves the recording when the call wraps) ----
+let recURL=null;
+function resetRecording(){ recURL=null; const a=$("recAudio"); try{a.pause();}catch(e){} a.removeAttribute("src"); const b=$("playBtn"); b.classList.add("hidden"); b.classList.remove("loading"); b.textContent="▶ Play recording"; }
+function offerRecording(url){ if(!url||url===recURL)return; recURL=url; const b=$("playBtn"); b.classList.remove("hidden"); b.textContent="▶ Play recording"; }
+$("playBtn").onclick=()=>{
+  const a=$("recAudio"), b=$("playBtn"); if(!recURL)return;
+  if(a.paused){
+    if(a.getAttribute("src")!==recURL) a.src=recURL;
+    b.classList.add("loading"); b.textContent="⏳ loading…";
+    a.play().then(()=>{ b.classList.remove("loading"); b.textContent="⏸ Pause recording"; })
+            .catch(e=>{ b.classList.remove("loading"); b.textContent="▶ Play recording"; logLine("system","Couldn't play recording: "+e.message); });
+  } else { a.pause(); b.textContent="▶ Play recording"; }
+};
+$("recAudio").addEventListener("ended",()=>{ $("playBtn").textContent="▶ Play recording"; });
+
+// ---- TRUE live transcript: stream the bot's OWN words via the public relay ----
+// The cloud bot pushes every question it speaks + live STT of each answer to the
+// relay; we render it word-by-word here. Set RELAY_BASE to the deployed relay
+// URL (e.g. https://your-relay.up.railway.app). Empty = fall back to the
+// end-of-call transcript from Cekura.
+const RELAY_BASE = window.RELAY_BASE || "";
+let liveStream=null, liveActive=false, liveStu=null;
+function closeLiveStream(){ if(liveStream){liveStream.close();liveStream=null;} liveStu=null; }
+function liveInterim(text){
+  rmThinking(); rmPlaceholder(); liveActive=true;
+  if(!liveStu){
+    liveStu=document.createElement("div"); liveStu.className="turn stu live";
+    liveStu.innerHTML=`<div class="av">🤖</div><div class="bub"><div class="nm">AI cheater</div><span class="txt"></span></div>`;
+    $("chat").appendChild(liveStu);
+  }
+  liveStu.querySelector(".txt").textContent=text||""; $("chat").scrollTop=$("chat").scrollHeight;
+}
+function liveFinal(text){
+  rmThinking(); rmPlaceholder(); liveActive=true;
+  if(liveStu){ liveStu.querySelector(".txt").textContent=text; liveStu.classList.remove("live"); liveStu=null; }
+  else { addTurn("student",text); return; }
+  wCount+=(text||"").split(/\s+/).filter(Boolean).length; $("wV").textContent=wCount; $("chat").scrollTop=$("chat").scrollHeight;
+}
+function openLiveStream(){
+  closeLiveStream();
+  const base=(RELAY_BASE||"").replace(/\/$/,"");  // empty = same origin (works once deployed)
+  liveStream=new EventSource(base+"/api/live/stream/stress");
+  liveStream.onmessage=(m)=>{
+    let ev; try{ev=JSON.parse(m.data);}catch(e){return;}
+    const t=ev.type;
+    if(t==="reset"){ $("chat").innerHTML=""; liveStu=null; liveActive=false; }
+    else if(t==="meta"||t==="connected"){ rmPlaceholder(); setPill("AI student is taking the exam…",true); setPhase("in exam"); }
+    else if(t==="examiner_speech"){ addTurn("examiner",ev.text); }
+    else if(t==="interim"){ liveInterim(ev.text); }
+    else if(t==="transcript" && ev.role==="student"){ liveFinal(ev.text); }
+    else if(t==="bot_speaking"){ if(ev.speaking){ rmThinking(); } else { addThinking(); } }
+    else if(t==="live_score" && ev.live_score!=null){ setRing(ev.live_score); }
+    else if(t==="suspicion" && ev.combined_score!=null){ setRing(ev.combined_score); }
+  };
+  liveStream.onerror=()=>{};  // Cekura stream still drives final verdict + completion
+}
+function addTurn(speaker,content){
+  rmThinking(); rmPlaceholder();
+  const isEx=speaker==="examiner";
+  if(!isEx) wCount+=(content||"").split(/\s+/).filter(Boolean).length;
+  const row=document.createElement("div"); row.className="turn "+(isEx?"exm":"stu");
+  row.innerHTML=`<div class="av">${isEx?'👨‍🏫':'🤖'}</div><div class="bub"><div class="nm">${isEx?'Examiner':'AI cheater'}</div>${esc(content)}</div>`;
+  $("chat").appendChild(row); $("chat").scrollTop=$("chat").scrollHeight;
+  if(isEx){ qCount++; addThinking(); }   // examiner asked -> the cheater is "thinking"
+  $("qV").textContent=qCount; $("wV").textContent=wCount;
+}
+function setVerdict(caught){ const v=$("vbig"); v.className="vbig "+(caught?"caught":"missed"); v.textContent=caught?'✅ CAUGHT (flagged AI)':'⚠️ slipped by'; }
+
+$("mClose").onclick=closeModal;
+$("stressModal").addEventListener("click",e=>{ if(e.target===$("stressModal")) closeModal(); });
+
+$("stressBtn").onclick=async()=>{
+  $("stressBtn").disabled=true;
+  $("chat").innerHTML=""; $("console").innerHTML=""; qCount=0; wCount=0; evCount=0; gotDetection=false; liveActive=false;
+  setRing(0); $("vbig").className="vbig"; $("vbig").textContent="awaiting verdict";
+  $("qV").textContent="0"; $("wV").textContent="0"; $("evV").textContent="0"; $("runV").textContent="—";
+  resetRecording(); closeLiveStream();
+  openModal(); setPill("connecting…",true); setPhase("connecting");
+  setPlaceholder(`<span class="ph-emoji">🎙️</span>Connecting the AI student to your exam bot…<br>The live system log on the right updates in real time. The full transcript drops in here the moment the call wraps.`);
+  t0=Date.now(); if(elapsedTimer)clearInterval(elapsedTimer);
+  elapsedTimer=setInterval(()=>{ $("elapsedV").textContent=((Date.now()-t0)/1000).toFixed(1)+"s"; },100);
+  logLine("system","Launching stress test…");
+  let r; try{ r=await (await fetch("/api/training/run-ai",{method:"POST"})).json(); }
+  catch(e){ logLine("system","ERROR: "+e); setPill("error",false); rmThinking(); $("stressBtn").disabled=false; return; }
+  if(!r.ok){ logLine("system","ERROR: "+(r.reason||"start failed")); setPill("error",false); rmThinking(); $("stressBtn").disabled=false; return; }
+  $("runV").textContent="#"+r.run_id; setPill("AI student is calling…",true); setPhase("dialing");
+  logLine("cekura","Run #"+r.run_id+" created. AI cheater dispatched to the exam bot.");
+  openLiveStream();  // stream the bot's own words live (same-origin once deployed)
+  logLine("system","Watching the bot live — the transcript streams in as the AI speaks (and fills in from the recording when the call wraps).");
+  curStream=new EventSource(`/api/training/stream/${r.run_id}`);
+  curStream.onmessage=(m)=>{
+    const ev=JSON.parse(m.data); evCount++; $("evV").textContent=evCount;
+    if(ev.type==="log"){ logLine(ev.layer||"system", ev.msg, ev.ts); }
+    else if(ev.type==="run_status"){ setPill("taking the exam…",true); setPhase("in exam"); if($("chat").querySelector(".placeholder")) setPlaceholder(`<span class="ph-emoji">🎧</span>The AI student is on the call now.<br>Watch it happen live in the system log → · the spoken transcript and a play button to hear the call appear here the moment it wraps.`); }
+    else if(ev.type==="turn"){ if(!liveActive) addTurn(ev.speaker,ev.content); }
+    else if(ev.type==="transcript"){ if(ev.voice_recording_url) offerRecording(ev.voice_recording_url); }
+    else if(ev.type==="detection"){ gotDetection=true; rmThinking(); setRing(ev.score); setVerdict(ev.predicted===1); setPill("verdict in",true); setPhase("scored"); }
+    else if(ev.type==="thinking"){ logLine("system", ev.msg, ev.ts); }
+    else if(ev.type==="done"){ rmThinking(); setPill("complete",false); setPhase("complete"); if(elapsedTimer){clearInterval(elapsedTimer);elapsedTimer=null;} logLine("system","Stress test complete."); if(!gotDetection)logLine("system","No scorable answer was captured this run."); if(!$("chat").querySelector(".turn")) setPlaceholder(`<span class="ph-emoji">🔇</span>No transcript came back for this call.<br>${recURL?'You can still play the recording above.':'Check the system log on the right for what happened.'}`); if(curStream)curStream.close(); curStream=null; $("stressBtn").disabled=false; }
+    else if(ev.type==="error"){ logLine("system","ERROR: "+(ev.msg||"")); setPill("error",false); }
+  };
+  curStream.onerror=()=>{ rmThinking(); setPill("stream ended",false); if(elapsedTimer){clearInterval(elapsedTimer);elapsedTimer=null;} if(curStream)curStream.close(); $("stressBtn").disabled=false; };
+};
+
+// ---- Step 3: copy link ----
+$("copyBtn").onclick=()=>{ const i=$("shareLink"); i.select(); navigator.clipboard.writeText(i.value); $("copyBtn").textContent="Copied!"; setTimeout(()=>$("copyBtn").textContent="Copy",1500); };
+
+// ---- Step 4: results ----
+async function pollResults(){
+  if(!TEST_ID)return;
+  try{
+    const d=await (await fetch(`/api/teacher/${TEST_ID}/results`)).json();
+    const rows=d.results||[];
+    $("resCount").textContent=rows.length?`· ${rows.length} taken`:"";
+    if(!rows.length){ $("resTable").innerHTML=`<tr><td style="color:var(--faint)">No students have taken it yet — share the link above.</td></tr>`; return; }
+    $("resTable").innerHTML=`<tr><th>#</th><th>AI suspicion</th><th>grade</th><th>flagged Qs</th></tr>`+rows.map((r,i)=>{
+      const lvl=r.suspicion_level||"low"; const sus=r.overall_score==null?"—":Math.round(r.overall_score*100)+"%";
+      return `<tr><td>${i+1}</td><td><span class="pill ${lvl}">${sus} · ${lvl}</span></td><td>${r.overall_grade?esc(r.overall_grade)+' · '+r.grade_score+'%':'—'}</td><td>${(r.flagged_questions||[]).map(q=>'Q'+(q+1)).join(', ')||'none'}</td></tr>`;
+    }).join("");
+  }catch(e){}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "h0",
+    "text": "um ok so newton's first law is basically like... things keep doing what they're doing? like if something's moving it keeps moving unless like a force stops it. that's the inertia thing i think.",
+    "truth": 0,
+    "human_label": 0,
+    "human_correct": true,
+    "detector_score": 0.0,
+    "detector_label": 0,
+    "detector_correct": true,
+    "agreed": true,
+    "ts": 1780170921.232745
+  }
+]

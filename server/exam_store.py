@@ -13,11 +13,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
+import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from config import load_config
+
+TESTS_PATH = Path(__file__).parent / "tests.json"
 
 
 def flag_threshold() -> float:
@@ -76,10 +81,11 @@ class QuestionRecord:
 class ProctorSession:
     """Everything we know about one oral exam, plus its live event bus."""
 
-    def __init__(self, session_id: str, title: str, questions: list[str]):
+    def __init__(self, session_id: str, title: str, questions: list[str], test_id: str | None = None):
         self.session_id = session_id
         self.title = title
         self.questions = questions
+        self.test_id = test_id  # the teacher's Test this attempt belongs to (if any)
         self.records: list[QuestionRecord] = [
             QuestionRecord(index=i, question=q) for i, q in enumerate(questions)
         ]
@@ -192,11 +198,77 @@ class ProctorSession:
 SESSIONS: dict[str, ProctorSession] = {}
 
 
-def create_session(session_id: str, title: str, questions: list[str]) -> ProctorSession:
-    session = ProctorSession(session_id, title, questions)
+def create_session(
+    session_id: str, title: str, questions: list[str], test_id: str | None = None
+) -> ProctorSession:
+    session = ProctorSession(session_id, title, questions, test_id=test_id)
     SESSIONS[session_id] = session
     return session
 
 
 def get_session(session_id: str) -> ProctorSession | None:
     return SESSIONS.get(session_id)
+
+
+# --- Tests: a teacher's reusable oral exam, shareable to many students -------
+#
+# A Test is what the teacher creates (title + questions). Each student who opens
+# the share link gets their own ProctorSession seeded from the Test; when they
+# finish, a small result snapshot is recorded back onto the Test. Tests persist
+# to tests.json so share links survive a server restart.
+
+
+def _load_tests() -> dict[str, Any]:
+    if TESTS_PATH.exists():
+        try:
+            return json.loads(TESTS_PATH.read_text())
+        except Exception:  # noqa: BLE001
+            return {}
+    return {}
+
+
+def _save_tests(tests: dict[str, Any]) -> None:
+    TESTS_PATH.write_text(json.dumps(tests, indent=2))
+
+
+def create_test(title: str, questions: list[str]) -> dict[str, Any]:
+    tests = _load_tests()
+    test_id = uuid.uuid4().hex[:8]
+    test = {
+        "test_id": test_id,
+        "title": title,
+        "questions": questions,
+        "created_at": time.time(),
+        "results": [],
+    }
+    tests[test_id] = test
+    _save_tests(tests)
+    return test
+
+
+def get_test(test_id: str) -> dict[str, Any] | None:
+    return _load_tests().get(test_id)
+
+
+def record_test_result(test_id: str, session: ProctorSession) -> None:
+    """Append a finished student's result snapshot to the test (idempotent)."""
+    tests = _load_tests()
+    test = tests.get(test_id)
+    if test is None:
+        return
+    report = session.to_report()
+    if report.get("num_scored", 0) == 0:
+        return  # nothing answered yet — don't record an empty attempt
+    results = [r for r in test.get("results", []) if r.get("session_id") != session.session_id]
+    results.append({
+        "session_id": session.session_id,
+        "taken_at": time.time(),
+        "overall_score": report.get("overall_score"),
+        "suspicion_level": report.get("suspicion_level"),
+        "flagged_questions": report.get("flagged_questions", []),
+        "num_scored": report.get("num_scored"),
+        "grade_score": report.get("grade_score"),
+        "overall_grade": report.get("overall_grade"),
+    })
+    test["results"] = results
+    _save_tests(tests)

@@ -496,6 +496,17 @@ wheels = [
 ]
 
 [[package]]
+name = "daily-python"
+version = "0.28.1"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/63/9321ec71b9dc2c1493c2563da994f69e96b36f0455fbc6a5d6a28891f5a7/daily_python-0.28.1-cp37-abi3-macosx_10_15_x86_64.whl", hash = "sha256:4a3cc675beb8405540ed85de517dffd1c115835dce986abd9b3d06bd222f6f5e", size = 13352100, upload-time = "2026-05-07T23:11:45.575Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/eb/e28839c206a586e10b03db7dc99dd978fa615cf3d78d644c836270ae987c/daily_python-0.28.1-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:b873df4e219588fe154b7d5cb9e6938d400992cf9813995b6e63f84a9e331919", size = 11886300, upload-time = "2026-05-07T23:11:48.585Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/ab/4d2f50f15e21ecbfa136f87cf07714601e1c78151ba61fe9a17eeaaa6af0/daily_python-0.28.1-cp37-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:0ef8375cbc78ffe59966a8ff5b2563c196b0d740cff0b76e6156851d71301b00", size = 13951479, upload-time = "2026-05-07T23:11:51.276Z" },
+    { url = "https://files.pythonhosted.org/packages/48/e5/67fad868676422f38de82be4a8bc0ca0e425b35ff64a5ae05c152bd98d82/daily_python-0.28.1-cp37-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:f333b1c8614fef4b5802e7651c11160c8e7ccae1e440493c0d5f0aca60e09089", size = 14481540, upload-time = "2026-05-07T23:11:53.767Z" },
+]
+
+[[package]]
 name = "detect-installer"
 version = "0.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1683,6 +1694,9 @@ wheels = [
 ]
 
 [package.optional-dependencies]
+daily = [
+    { name = "daily-python" },
+]
 gradium = [
     { name = "websockets" },
 ]
@@ -3067,7 +3081,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "anthropic" },
-    { name = "pipecat-ai", extra = ["gradium", "openai", "runner", "webrtc", "websocket"] },
+    { name = "pipecat-ai", extra = ["daily", "gradium", "openai", "runner", "webrtc", "websocket"] },
     { name = "pipecatcloud" },
     { name = "pymupdf" },
     { name = "python-multipart" },
@@ -3082,7 +3096,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=0.40.0" },
-    { name = "pipecat-ai", extras = ["gradium", "openai", "runner", "silero", "webrtc", "websocket"], specifier = ">=1.3.0" },
+    { name = "pipecat-ai", extras = ["daily", "gradium", "openai", "runner", "silero", "webrtc", "websocket"], specifier = ">=1.3.0" },
     { name = "pipecatcloud", specifier = ">=0.7.1" },
     { name = "pymupdf", specifier = ">=1.24.0" },
     { name = "python-multipart", specifier = ">=0.0.9" },

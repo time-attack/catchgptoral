@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CatchGPT — Teaching the AI to catch cheating</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#09090b;--panel:#111114;--line:#232329;--ink:#ededf0;--dim:#a1a1aa;--faint:#6b6b75;
+    --blue:#3b82f6;--emerald:#10b981;--rose:#f43f5e;--violet:#8b5cf6;
+    --mono:"JetBrains Mono",monospace;--sans:"Satoshi",-apple-system,system-ui,sans-serif}
+  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans)}
+  body{background-image:radial-gradient(1100px 520px at 50% -10%,rgba(59,130,246,.10),transparent 60%);min-height:100vh}
+  .wrap{max-width:1080px;margin:0 auto;padding:30px 22px 80px}
+  a{color:var(--blue);text-decoration:none}
+  .head{text-align:center;margin-bottom:24px}
+  .badge-top{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  h1{font-size:29px;font-weight:900;letter-spacing:-.025em;margin:8px 0}
+  .lede{color:var(--dim);font-size:15.5px;max-width:700px;margin:0 auto;line-height:1.55}
+  .lede b{color:var(--ink)}
+
+  .hero{background:linear-gradient(180deg,rgba(16,185,129,.07),transparent),var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap;margin:22px 0 18px}
+  .hero .big{font-family:var(--mono);font-size:58px;font-weight:700;line-height:1;color:var(--emerald)}
+  .hero .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-bottom:6px}
+  .hero .meta{font-size:13px;color:var(--dim);margin-top:8px}
+  .trainbtn{font-family:var(--sans);font-weight:800;border:0;border-radius:13px;padding:15px 22px;font-size:15px;cursor:pointer;background:#fafafa;color:#0a0a0a;transition:transform .06s,filter .15s}
+  .trainbtn:hover{filter:brightness(1.05)} .trainbtn:active{transform:translateY(1px)} .trainbtn:disabled{opacity:.55;cursor:not-allowed}
+  .status{font-family:var(--mono);font-size:12.5px;color:var(--dim);margin-top:10px;min-height:18px}
+  .spark{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--emerald);margin-right:7px;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 7px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.cols{grid-template-columns:1fr}}
+  .col{border:1px solid var(--line);border-radius:18px;padding:18px;background:var(--panel)}
+  .col.ai{border-top:3px solid var(--violet)} .col.human{border-top:3px solid var(--emerald)}
+  .col h2{font-size:17px;font-weight:800;margin:0 0 3px;display:flex;align-items:center;gap:9px}
+  .col .who{font-size:12.5px;color:var(--faint);margin-bottom:14px;line-height:1.5}
+  .count{font-family:var(--mono);font-size:34px;font-weight:700;margin:6px 0} .count.ai{color:var(--violet)} .count.human{color:var(--emerald)}
+  .countk{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+  .act{font-family:var(--sans);font-weight:800;font-size:15px;border:0;border-radius:12px;padding:13px 18px;cursor:pointer;margin-top:14px;width:100%;transition:transform .06s,filter .15s}
+  .act:active{transform:translateY(1px)} .act:disabled{opacity:.55;cursor:not-allowed}
+  .act.ai{background:var(--violet);color:#fff} .act.human{background:var(--emerald);color:#04130d;display:block;text-align:center}
+  .answer{background:#0c0c0f;border:1px solid var(--line);border-radius:11px;padding:11px;font-size:13px;line-height:1.5;max-height:120px;overflow-y:auto;margin-top:12px;min-height:54px;color:var(--ink)}
+  .answer.empty{color:var(--faint);display:grid;place-items:center;text-align:center}
+  audio{width:100%;margin-top:10px;height:32px;filter:invert(.92) hue-rotate(180deg);border-radius:8px}
+  .verdict{margin-top:11px;border-radius:11px;padding:11px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .verdict.ok{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.35)}
+  .verdict.bad{background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.35)}
+  .verdict.idle{background:#0c0c0f;border:1px solid var(--line);color:var(--faint);font-weight:500}
+  .verdict .pct{font-family:var(--mono);font-size:20px}
+  .rate{font-family:var(--mono);font-size:13px;color:var(--dim);margin-top:10px}
+
+  .livecard{margin-top:16px;display:none} .livecard.show{display:block}
+  .livecard h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .ldot{width:8px;height:8px;border-radius:50%;background:var(--emerald);animation:pulse 1.4s infinite}
+  .feed{max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;font-size:13px}
+  .feed .ev{border:1px solid var(--line);border-left-width:3px;border-radius:9px;padding:7px 11px;background:#0c0c0f;line-height:1.45;animation:rise .25s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .feed .ev .tm{font-family:var(--mono);font-size:10px;color:var(--faint);margin-right:7px}
+  .feed .ev.think{border-left-color:var(--blue)} .feed .ev.talk{border-left-color:var(--violet)}
+  .feed .ev.judge{border-left-color:#f59e0b} .feed .ev.win{border-left-color:var(--emerald)}
+  .feed .ev.status{border-left-color:var(--faint);color:var(--dim);font-family:var(--mono);font-size:11.5px}
+  .feed .ev.exm{border-left-color:#64748b} .feed .ev.stu{border-left-color:var(--violet)}
+  .feed .ev .spk{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-right:6px}
+  /* before/after rounds log */
+  .rounds{margin-top:16px}
+  .rounds h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:0 0 12px}
+  table.rt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px}
+  table.rt th,table.rt td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right}
+  table.rt th:first-child,table.rt td:first-child{text-align:left;color:var(--dim)}
+  table.rt tr.latest td{background:rgba(16,185,129,.07)}
+  table.rt .up{color:var(--emerald)} table.rt .same{color:var(--faint)}
+  .arrow{color:var(--emerald);font-weight:700}
+  .foot{display:flex;gap:16px;justify-content:center;margin-top:26px;flex-wrap:wrap;font-size:14px}
+  .foot a{background:var(--panel);border:1px solid var(--line);padding:11px 18px;border-radius:11px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="badge-top">CatchGPT · Oral Exam Proctor</div>
+    <h1>Teaching the AI to catch cheating</h1>
+    <p class="lede">The detector learns from two <b>real</b> sources: <b style="color:#c4b5fd">actual AI</b> taking the exam (that's real cheating behavior), and <b style="color:#6ee7b7">real people</b> answering with their own voice. We do <b>not</b> fake a human — you can't learn what a person sounds like from an AI pretending to be one.</p>
+  </div>
+
+  <div class="hero">
+    <div>
+      <div class="lbl">Detector accuracy · real humans vs real AI</div>
+      <div class="big" id="acc">—</div>
+      <div class="meta" id="accMeta">Add human voices + an AI student, then train.</div>
+    </div>
+    <div style="text-align:right">
+      <button class="trainbtn" id="trainBtn">🎓 Train detector now</button>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="col ai">
+      <h2>🤖 AI students <span style="font-family:var(--mono);font-size:11px;color:var(--faint)">(simulated)</span></h2>
+      <div class="who">A real AI takes the oral exam by voice — fluent, textbook answers. This is genuine "what cheating sounds like" data.</div>
+      <div class="count ai" id="aiCount">0</div><div class="countk">AI answers collected</div>
+      <button class="act ai" id="aiBtn">▶ Send an AI student</button>
+      <div class="answer empty" id="aiAns">No AI student run yet.</div>
+      <div id="aiAudio"></div>
+      <div class="verdict idle" id="aiVerdict">Detector hasn't judged one yet.</div>
+    </div>
+
+    <div class="col human">
+      <h2>🧑 Real humans</h2>
+      <div class="who">Real people answer questions with their microphone. Their genuine, disfluent speech teaches the detector what a human actually sounds like.</div>
+      <div class="count human" id="huCount">0</div><div class="countk">human voice answers collected</div>
+      <a class="act human" href="/train">🎤 Add your voice →</a>
+      <div class="rate" id="huRate">Detector recognizes humans: —</div>
+    </div>
+  </div>
+
+  <div class="card livecard" id="liveCard">
+    <h2><span class="ldot"></span> Live — the AI student is taking the exam (transcribing in real time)</h2>
+    <div class="feed" id="feed"></div>
+  </div>
+
+  <div class="card rounds" id="roundsCard" style="display:none">
+    <h2>📊 Training log — detector accuracy before → after, every round</h2>
+    <table class="rt" id="roundsTable"></table>
+  </div>
+
+  <div class="foot">
+    <a href="/train">🎤 Add your voice</a>
+    <a href="/test">🔬 Test the detector</a>
+    <a href="/">🎤 Try the live exam</a>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function pct(x){return Math.round(x*100)+"%"}
+function clock(ts){const d=ts?new Date(ts*1000):new Date();return d.toLocaleTimeString([],{hour12:false})}
+let aiRunId=null;
+
+function feedLine(cls,html,ts){const f=$("#feed");const e=document.createElement("div");e.className="ev "+cls;
+  e.innerHTML=`<span class="tm">${clock(ts)}</span>${html}`;f.appendChild(e);f.scrollTop=f.scrollHeight;}
+
+function setAccuracy(state){
+  const h=state.history||[];
+  if(!h.length){$("#acc").textContent="—";return}
+  const last=h[h.length-1];
+  $("#acc").textContent=pct(last.after.accuracy);
+  $("#accMeta").textContent=`across ${h.length} training round${h.length>1?'s':''}`+(h.length>1?` · up from ${pct(h[0].after.accuracy)}`:"");
+}
+
+function renderRounds(history){
+  if(!history||!history.length){return}
+  $("#roundsCard").style.display="block";
+  const rows=history.map((h,i)=>{
+    const b=h.before||{}, a=h.after||{};
+    const up=(a.accuracy||0)>(b.accuracy||0);
+    return `<tr class="${i===history.length-1?'latest':''}">
+      <td>round ${i+1}</td>
+      <td>${pct(b.accuracy||0)}</td>
+      <td class="arrow">→</td>
+      <td>${pct(a.accuracy||0)}</td>
+      <td class="${up?'up':'same'}">${up?'▲ '+Math.round(((a.accuracy||0)-(b.accuracy||0))*100)+'pts':'—'}</td>
+      <td>F1 ${(a.f1||0).toFixed(2)}</td>
+      <td>thr ${h.new_threshold}</td>
+    </tr>`;
+  }).join("");
+  $("#roundsTable").innerHTML=`<tr><th>round</th><th>before</th><th></th><th>after</th><th>Δ</th><th></th><th></th></tr>`+rows;
+}
+
+async function loadState(){
+  const s=await (await fetch("/api/training/state")).json();
+  setAccuracy(s);
+  renderRounds(s.history);
+  const hv=s.human_voice||{};
+  $("#huCount").textContent=hv.contributed||0;
+  $("#huRate").textContent="Detector recognizes humans: "+(hv.recognized_human_rate==null?"—":pct(hv.recognized_human_rate));
+  aiRunId=s.last_ai_run_id||null;
+  if(aiRunId){ try{ renderAI(await (await fetch(`/api/training/run/${aiRunId}`)).json()); }catch(e){} }
+}
+
+function renderAI(snap){
+  const scs=(snap.scenarios||[]).filter(s=>/cheat|scripted|ai/i.test(s.scenario_name)&&s.student_text);
+  $("#aiCount").textContent=scs.length;
+  const s=scs.sort((a,b)=>b.student_word_count-a.student_word_count)[0];
+  if(!s){return;}
+  $("#aiAns").className="answer"; $("#aiAns").textContent='"'+s.student_text+'"';
+  $("#aiAudio").innerHTML=s.voice_recording_url?`<audio controls preload="none" src="${s.voice_recording_url}"></audio>`:"";
+  const det=s.detection;
+  if(det){
+    const says=det.predicted===1?"AI":"Human";
+    $("#aiVerdict").className="verdict "+(det.correct?"ok":"bad");
+    $("#aiVerdict").innerHTML=`<span>Detector says: <b>${says}</b> ${det.correct?'✓':'✗'}</span><span class="pct">${Math.round(det.score*100)}%</span>`;
+  }
+}
+
+async function sendAI(){
+  $("#aiBtn").disabled=true; $("#liveCard").classList.add("show"); $("#feed").innerHTML="";
+  feedLine("status","Sending an AI student to take the exam…");
+  let r; try{ r=await (await fetch("/api/training/run-ai",{method:"POST"})).json(); }
+  catch(e){ feedLine("judge","Could not start: "+e); $("#aiBtn").disabled=false; return; }
+  if(!r.ok){ feedLine("judge",r.reason||"start failed"); $("#aiBtn").disabled=false; return; }
+  aiRunId=r.run_id; feedLine("status",`AI student is calling the examiner (run ${aiRunId})…`);
+  const stream=new EventSource(`/api/training/stream/${aiRunId}`);
+  stream.onmessage=async(m)=>{
+    const ev=JSON.parse(m.data);
+    if(ev.type==="run_status"){const p=Object.entries(ev.statuses||{}).map(([k,v])=>`${v}`).join(", ");feedLine("status",`⏳ ${esc(p)}`,ev.ts);}
+    else if(ev.type==="turn"){
+      const isEx=ev.speaker==="examiner";
+      feedLine(isEx?"exm":"stu",`<span class="spk">${isEx?'🧑‍🏫 examiner':'🤖 AI student'}${ev.time?' · '+esc(ev.time):''}</span>${esc(ev.content)}`,ev.ts);
+    }
+    else if(ev.type==="transcript"){feedLine("talk",`📝 AI student answered — ${ev.word_count} words.`,ev.ts); try{renderAI(await (await fetch(`/api/training/run/${aiRunId}`)).json());}catch(e){}}
+    else if(ev.type==="detection"){const ok=ev.correct?'<span style="color:var(--emerald)">✓</span>':'<span style="color:var(--rose)">✗</span>';feedLine("judge",`🔍 detector: <b>${Math.round(ev.score*100)}% AI</b> → calls it <b>${esc(ev.predicted_label)}</b> ${ok}`,ev.ts);}
+    else if(ev.type==="thinking"){feedLine("think",esc(ev.msg),ev.ts);}
+    else if(ev.type==="done"){stream.close(); $("#aiBtn").disabled=false; feedLine("win","AI student done. Add human voices, then press Train.",ev.ts); loadState();}
+  };
+  stream.onerror=()=>{stream.close(); $("#aiBtn").disabled=false; loadState();};
+}
+
+async function train(){
+  $("#trainBtn").disabled=true;
+  const setStatus=m=>{$("#status").innerHTML=`<span class="spark"></span>${esc(m)}`};
+  setStatus("Training on real humans vs real AI…");
+  let r; try{ r=await (await fetch("/api/training/train",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ai_run_id:aiRunId})})).json(); }
+  catch(e){ setStatus("Error: "+e); $("#trainBtn").disabled=false; return; }
+  if(!r.ok){ setStatus(r.reason||"Could not train yet."); $("#trainBtn").disabled=false; return; }
+  setStatus(`Trained on ${r.n_human} human + ${r.n_ai} AI answers — accuracy ${pct(r.before.accuracy)} → ${pct(r.after.accuracy)}`);
+  await loadState();
+  $("#trainBtn").disabled=false;
+}
+
+$("#aiBtn").onclick=sendAI;
+$("#trainBtn").onclick=train;
+loadState();
+</script>
+</body>
+</html>

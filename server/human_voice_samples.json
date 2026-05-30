@@ -1,0 +1,24 @@
+[
+  {
+    "question": "Explain how Newton's first law relates to inertia with an example.",
+    "text": "So, like, because an object of motion stays in motion, you will, like, you need, like, let's say, like, you're driving a car, right, and you're going 60 miles per hour, you're also going 60 miles per hour as a human passenger in that car, but, like, let's say, like, you stop, like, abruptly, you're still going to go 60 miles per hour because of inertia.",
+    "label": 0,
+    "source": "human_voice",
+    "detector_score": 0.5,
+    "detector_label": 0,
+    "detector_source": "zerogpt",
+    "recognized_human": true,
+    "ts": 1780171563.0312252
+  },
+  {
+    "question": "Describe your typical morning routine.",
+    "text": "Basically like every morning I just wake up, shower, brush my teeth, put on my contacts and just get on my computer.",
+    "label": 0,
+    "source": "human_voice",
+    "detector_score": 0.0,
+    "detector_label": 0,
+    "detector_source": "zerogpt",
+    "recognized_human": true,
+    "ts": 1780172476.751413
+  }
+]

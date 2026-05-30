@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CatchGPT — Help train with your voice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#09090b;--panel:#111114;--line:#232329;--ink:#ededf0;--dim:#a1a1aa;--faint:#6b6b75;
+    --blue:#3b82f6;--emerald:#10b981;--rose:#f43f5e;--violet:#8b5cf6;
+    --mono:"JetBrains Mono",monospace;--sans:"Satoshi",-apple-system,system-ui,sans-serif}
+  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans)}
+  body{background-image:radial-gradient(1000px 480px at 50% -10%,rgba(16,185,129,.10),transparent 60%);min-height:100vh}
+  .wrap{max-width:660px;margin:0 auto;padding:32px 22px 70px}
+  a{color:var(--blue);text-decoration:none}
+  .head{text-align:center;margin-bottom:20px}
+  h1{font-size:25px;font-weight:900;letter-spacing:-.02em;margin:6px 0}
+  .lede{color:var(--dim);font-size:14.5px;line-height:1.55;max-width:520px;margin:0 auto}
+  .lede b{color:var(--ink)}
+
+  .stats{display:flex;gap:10px;justify-content:center;margin:18px 0 20px;flex-wrap:wrap}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 16px;text-align:center;min-width:130px}
+  .stat .v{font-family:var(--mono);font-size:20px;font-weight:700} .stat .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-top:2px}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;text-align:center}
+  .qlabel{font-size:11.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-bottom:10px}
+  .question{font-size:21px;font-weight:700;line-height:1.4;margin-bottom:6px}
+
+  .mic{margin-top:22px}
+  .recbtn{font-family:var(--sans);font-weight:800;font-size:17px;border:0;border-radius:50px;padding:18px 30px;cursor:pointer;background:var(--emerald);color:#04130d;transition:transform .06s,filter .15s;display:inline-flex;align-items:center;gap:10px}
+  .recbtn:hover{filter:brightness(1.08)} .recbtn:active{transform:translateY(1px)}
+  .recbtn.recording{background:var(--rose);color:#fff;animation:throb 1.1s infinite}
+  .recbtn:disabled{opacity:.6;cursor:not-allowed}
+  @keyframes throb{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,.5)}50%{box-shadow:0 0 0 14px rgba(244,63,94,0)}}
+  .hint{font-size:12.5px;color:var(--faint);margin-top:12px;min-height:18px}
+  .timer{font-family:var(--mono);font-size:13px;color:var(--rose);margin-top:8px}
+
+  .result{margin-top:18px;border-radius:14px;padding:16px;text-align:left;display:none}
+  .result.show{display:block;animation:rise .25s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .result.good{background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.35)}
+  .result.miss{background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35)}
+  .result .you{font-size:14px;color:var(--dim);font-style:italic;margin-bottom:10px}
+  .result .top{font-size:17px;font-weight:800;margin-bottom:6px}
+  .result .det{font-family:var(--mono);font-size:13px;color:var(--dim)}
+  .next{margin-top:14px} .next button{font-family:var(--sans);font-weight:700;border:0;border-radius:11px;padding:12px 22px;font-size:15px;background:#fafafa;color:#0a0a0a;cursor:pointer}
+
+  .foot{display:flex;gap:14px;justify-content:center;margin-top:24px;font-size:14px}
+  .foot a{background:var(--panel);border:1px solid var(--line);padding:10px 16px;border-radius:11px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>🎤 Train the detector with your voice</h1>
+    <p class="lede">Answer the question <b>out loud in your own words</b>. We transcribe your real speech and feed it to the detector as a genuine <b style="color:#6ee7b7">human</b> example — the exact data it needs to tell people apart from AI. You'll see whether it correctly recognizes you.</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="v" id="sN">0</div><div class="k">answers you gave</div></div>
+    <div class="stat"><div class="v" id="sRec">—</div><div class="k">recognized as human</div></div>
+  </div>
+
+  <div class="card">
+    <div class="qlabel">Answer this out loud</div>
+    <div class="question" id="question">Loading…</div>
+
+    <div class="mic">
+      <button class="recbtn" id="recBtn">🎤 Record my answer</button>
+      <div class="timer" id="timer"></div>
+      <div class="hint" id="hint">Click, speak your answer naturally, then click again to submit.</div>
+    </div>
+
+    <div class="result" id="result"></div>
+    <div class="next" id="nextWrap" style="display:none"><button id="btnNext">Next question →</button></div>
+  </div>
+
+  <div class="foot">
+    <a href="/training">← Back to the simulations</a>
+    <a href="/">🎤 Live exam</a>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+let question="", mediaRecorder=null, chunks=[], stream=null, recording=false, timerInt=null, t0=0;
+
+function setStats(st){ if(!st)return;
+  $("#sN").textContent=st.contributed||0;
+  $("#sRec").textContent=st.recognized_human_rate==null?"—":Math.round(st.recognized_human_rate*100)+"%";
+}
+
+async function loadQuestion(){
+  $("#result").className="result"; $("#nextWrap").style.display="none";
+  $("#hint").textContent="Click, speak your answer naturally, then click again to submit.";
+  $("#timer").textContent="";
+  const d=await (await fetch("/api/train/question")).json();
+  question=d.question; $("#question").textContent=question; setStats(d.stats);
+}
+
+function fmt(s){const m=Math.floor(s/60),x=s%60;return `${m}:${String(x).padStart(2,'0')}`}
+
+async function startRec(){
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(e){ $("#hint").textContent="🎤 Microphone permission is needed to record."; return; }
+  chunks=[]; mediaRecorder=new MediaRecorder(stream);
+  mediaRecorder.ondataavailable=e=>{ if(e.data.size>0) chunks.push(e.data); };
+  mediaRecorder.onstop=submit;
+  mediaRecorder.start();
+  recording=true; t0=Date.now();
+  $("#recBtn").classList.add("recording"); $("#recBtn").innerHTML="⏹ Stop & submit";
+  $("#hint").textContent="Recording… speak your answer, then click to submit.";
+  timerInt=setInterval(()=>{ $("#timer").textContent="● "+fmt(Math.floor((Date.now()-t0)/1000)); },250);
+}
+
+function stopRec(){
+  recording=false; clearInterval(timerInt);
+  $("#recBtn").classList.remove("recording"); $("#recBtn").disabled=true; $("#recBtn").innerHTML="⏳ Transcribing…";
+  $("#hint").textContent="Transcribing your answer and asking the detector…";
+  if(mediaRecorder && mediaRecorder.state!=="inactive") mediaRecorder.stop();
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+}
+
+async function submit(){
+  const blob=new Blob(chunks,{type:"audio/webm"});
+  const fd=new FormData(); fd.append("question",question); fd.append("audio",blob,"answer.webm");
+  let r;
+  try{ r=await (await fetch("/api/train/voice",{method:"POST",body:fd})).json(); }
+  catch(e){ $("#hint").textContent="Upload failed: "+e; resetBtn(); return; }
+  resetBtn();
+  if(!r.ok){ $("#hint").textContent=r.reason||"Something went wrong — try again."; return; }
+  setStats(r.stats);
+  const res=$("#result");
+  const good=r.recognized_human;
+  res.className="result show "+(good?"good":"miss");
+  res.innerHTML=`
+    <div class="you">You said: "${esc(r.transcript)}"</div>
+    <div class="top">${good?"✅ The detector recognized you as Human":"⚠️ The detector wrongly thought that was AI"}</div>
+    <div class="det">It scored your real spoken answer ${Math.round(r.detector_score*100)}% AI-like. ${good?"Great — that's a correct call.":"That's a mistake — and your real-voice sample is exactly what helps fix it."}</div>`;
+  $("#hint").textContent="";
+  $("#nextWrap").style.display="block";
+}
+
+function resetBtn(){ $("#recBtn").disabled=false; $("#recBtn").classList.remove("recording"); $("#recBtn").innerHTML="🎤 Record my answer"; $("#timer").textContent=""; }
+
+$("#recBtn").onclick=()=>{ recording?stopRec():startRec(); };
+$("#btnNext").onclick=loadQuestion;
+loadQuestion();
+</script>
+</body>
+</html>

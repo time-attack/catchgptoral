@@ -398,6 +398,24 @@ let QUESTIONS = [];
 let pc = null;
 let evtSource = null;
 
+// Student-link mode: /take/{test_id} loads a teacher's test and goes straight to
+// the exam (no upload). A session is minted lazily when the student hits Start.
+const TAKE_MATCH = location.pathname.match(/^\/take\/([A-Za-z0-9]+)/);
+let TEST_ID = TAKE_MATCH ? TAKE_MATCH[1] : null;
+
+async function initTake() {
+  if (!TEST_ID) return;
+  try {
+    const r = await fetch(`/api/test/${TEST_ID}`);
+    if (!r.ok) throw new Error("invalid link");
+    const data = await r.json();
+    QUESTIONS = data.questions;
+    showReview({ title: data.title, num_questions: data.num_questions, questions: data.questions, session_id: null });
+  } catch (e) {
+    document.body.innerHTML = '<div style="padding:48px;font-family:system-ui;color:#fafafa;text-align:center">This exam link is invalid or expired.</div>';
+  }
+}
+
 // ---------- Step 1: upload ----------
 const drop = $("drop"), fileInput = $("file");
 drop.onclick = () => fileInput.click();
@@ -430,9 +448,14 @@ function showReview(data) {
   $("step-upload").classList.add("hidden");
   $("step-review").classList.remove("hidden");
   $("examTitle").textContent = data.title;
-  $("examMeta").textContent = `${data.num_questions} questions · session ${data.session_id}`;
-  $("sessionTag").style.display = "inline-block";
-  $("sessionTag").textContent = "session " + data.session_id;
+  if (data.session_id) {
+    $("examMeta").textContent = `${data.num_questions} questions · session ${data.session_id}`;
+    $("sessionTag").style.display = "inline-block";
+    $("sessionTag").textContent = "session " + data.session_id;
+  } else {
+    $("examMeta").textContent = `${data.num_questions} questions · spoken oral exam`;
+    $("sessionTag").style.display = "none";
+  }
   const list = $("qlist");
   list.innerHTML = "";
   data.questions.forEach((q, i) => {
@@ -449,6 +472,14 @@ async function startExam() {
   $("startErr").classList.add("hidden");
   $("startBtn").disabled = true;
   try {
+    // Student-link mode: mint the session now (the teacher's test -> a fresh attempt).
+    if (!SESSION && TEST_ID) {
+      const r = await fetch(`/api/test/${TEST_ID}/start`, { method: "POST" });
+      if (!r.ok) throw new Error("Could not start this exam.");
+      const d = await r.json();
+      SESSION = d.session_id;
+      QUESTIONS = d.questions;
+    }
     buildLiveScaffold();
     $("step-review").classList.add("hidden");
     $("step-live").classList.remove("hidden");
@@ -749,6 +780,9 @@ function showReport(report) {
 function escapeHtml(s) {
   return (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 }
+
+// Student-link mode bootstrap (no-op for the normal upload page).
+initTake();
 </script>
 </body>
 </html>

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CatchGPT — Test the detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#09090b;--panel:#111114;--line:#232329;--ink:#ededf0;--dim:#a1a1aa;--faint:#6b6b75;
+    --blue:#3b82f6;--emerald:#10b981;--rose:#f43f5e;--violet:#8b5cf6;--amber:#f59e0b;
+    --mono:"JetBrains Mono",monospace;--sans:"Satoshi",-apple-system,system-ui,sans-serif}
+  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans)}
+  body{background-image:radial-gradient(1000px 480px at 50% -10%,rgba(59,130,246,.10),transparent 60%);min-height:100vh}
+  .wrap{max-width:660px;margin:0 auto;padding:32px 22px 70px}
+  a{color:var(--blue);text-decoration:none}
+  .head{text-align:center;margin-bottom:20px}
+  h1{font-size:25px;font-weight:900;letter-spacing:-.02em;margin:6px 0}
+  .lede{color:var(--dim);font-size:14.5px;line-height:1.55;max-width:520px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px}
+  .tabs{display:flex;gap:8px;margin-bottom:14px}
+  .tab{flex:1;text-align:center;padding:10px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-weight:700;font-size:14px;background:#0c0c0f;color:var(--dim)}
+  .tab.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+  textarea{width:100%;min-height:120px;background:#0c0c0f;border:1px solid var(--line);border-radius:12px;color:var(--ink);font-family:var(--sans);font-size:15px;padding:13px;resize:vertical;line-height:1.5}
+  .btn{font-family:var(--sans);font-weight:800;font-size:15px;border:0;border-radius:12px;padding:13px 20px;cursor:pointer;background:#fafafa;color:#0a0a0a;margin-top:12px;width:100%}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .recbtn{font-weight:800;font-size:16px;border:0;border-radius:50px;padding:16px 28px;cursor:pointer;background:var(--blue);color:#fff;display:inline-flex;align-items:center;gap:10px}
+  .recbtn.rec{background:var(--rose);animation:throb 1.1s infinite} @keyframes throb{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,.5)}50%{box-shadow:0 0 0 14px rgba(244,63,94,0)}}
+  .voicebox{text-align:center;padding:14px 0}
+  .hint{font-size:12.5px;color:var(--faint);margin-top:10px;min-height:16px;text-align:center}
+
+  .result{margin-top:18px;border-radius:14px;padding:18px;display:none}
+  .result.show{display:block;animation:rise .25s ease} @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .result .verdict{font-size:24px;font-weight:900;display:flex;align-items:center;gap:10px}
+  .gauge{height:12px;border-radius:7px;background:#26262c;overflow:hidden;margin:14px 0 8px}
+  .gfill{height:100%;border-radius:7px;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+  .scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .det{font-family:var(--mono);font-size:12.5px;color:var(--dim);margin-top:10px}
+  .said{font-style:italic;color:var(--dim);font-size:13.5px;margin-top:10px}
+  .foot{display:flex;gap:14px;justify-content:center;margin-top:24px;font-size:14px}
+  .foot a{background:var(--panel);border:1px solid var(--line);padding:10px 16px;border-radius:11px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>🔬 Test the detector</h1>
+    <p class="lede">Try to fool it. Paste any text, or record your voice, and see whether the trained detector calls it <b>Human</b> or <b>AI</b> — and how confident it is.</p>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <div class="tab on" id="tabText">⌨️ Type / paste text</div>
+      <div class="tab" id="tabVoice">🎤 Record voice</div>
+    </div>
+
+    <div id="textPane">
+      <textarea id="text" placeholder="Paste an answer here — your own words, or something ChatGPT wrote — and see what the detector thinks."></textarea>
+      <button class="btn" id="testBtn">Test it →</button>
+    </div>
+
+    <div id="voicePane" style="display:none">
+      <div class="voicebox">
+        <button class="recbtn" id="recBtn">🎤 Record</button>
+        <div class="hint" id="vhint">Click, speak, then click again to test.</div>
+      </div>
+    </div>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <div class="foot">
+    <a href="/training">← Training</a>
+    <a href="/train">🎤 Add your voice</a>
+    <a href="/">🎤 Live exam</a>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function colorFor(x){return x>=0.7?"var(--rose)":x>=0.4?"var(--amber)":"var(--emerald)"}
+
+function showResult(r){
+  if(!r.ok){ const el=$("#result"); el.className="result show"; el.style.background="#0c0c0f"; el.style.border="1px solid var(--line)"; el.innerHTML=`<div class="det">${esc(r.reason||"error")}</div>`; return; }
+  const isAI=r.label==="AI"; const col=colorFor(r.score); const p=Math.round(r.score*100);
+  const el=$("#result"); el.className="result show";
+  el.style.background=isAI?"rgba(244,63,94,.10)":"rgba(16,185,129,.10)";
+  el.style.border=`1px solid ${isAI?'rgba(244,63,94,.35)':'rgba(16,185,129,.35)'}`;
+  el.innerHTML=`
+    <div class="verdict" style="color:${col}">${isAI?'🤖':'🧑'} The detector says: ${esc(r.label)}</div>
+    <div class="gauge"><div class="gfill" style="width:${Math.max(p,3)}%;background:${col}"></div></div>
+    <div class="scale"><span>0% · human</span><span>${p}% AI-like</span><span>100% · AI</span></div>
+    <div class="det">decision threshold ${r.threshold} · detector: ${esc(r.source)}</div>
+    ${r.said?`<div class="said">Heard: "${esc(r.said)}"</div>`:""}`;
+}
+
+$("#testBtn").onclick=async()=>{
+  const text=$("#text").value.trim(); if(!text)return;
+  $("#testBtn").disabled=true; $("#testBtn").textContent="Testing…";
+  try{ const r=await (await fetch("/api/detector/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})})).json(); showResult(r); }
+  catch(e){ showResult({ok:false,reason:String(e)}); }
+  $("#testBtn").disabled=false; $("#testBtn").textContent="Test it →";
+};
+
+$("#tabText").onclick=()=>{$("#tabText").classList.add("on");$("#tabVoice").classList.remove("on");$("#textPane").style.display="block";$("#voicePane").style.display="none";};
+$("#tabVoice").onclick=()=>{$("#tabVoice").classList.add("on");$("#tabText").classList.remove("on");$("#voicePane").style.display="block";$("#textPane").style.display="none";};
+
+let mr=null,chunks=[],stream=null,rec=false;
+$("#recBtn").onclick=async()=>{
+  if(rec){ rec=false; $("#recBtn").classList.remove("rec"); $("#recBtn").disabled=true; $("#recBtn").textContent="⏳ Testing…"; $("#vhint").textContent="Transcribing and testing…";
+    if(mr&&mr.state!=="inactive")mr.stop(); if(stream)stream.getTracks().forEach(t=>t.stop()); return; }
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }catch(e){ $("#vhint").textContent="🎤 Microphone permission needed."; return; }
+  chunks=[]; mr=new MediaRecorder(stream); mr.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data)};
+  mr.onstop=async()=>{
+    const fd=new FormData(); fd.append("audio",new Blob(chunks,{type:"audio/webm"}),"test.webm");
+    try{ const r=await (await fetch("/api/detector/test-voice",{method:"POST",body:fd})).json(); if(r.ok)r.said=r.text; showResult(r); }
+    catch(e){ showResult({ok:false,reason:String(e)}); }
+    $("#recBtn").disabled=false; $("#recBtn").classList.remove("rec"); $("#recBtn").textContent="🎤 Record"; $("#vhint").textContent="Click, speak, then click again to test.";
+  };
+  mr.start(); rec=true; $("#recBtn").classList.add("rec"); $("#recBtn").textContent="⏹ Stop & test"; $("#vhint").textContent="Recording… speak, then click to test.";
+};
+</script>
+</body>
+</html>

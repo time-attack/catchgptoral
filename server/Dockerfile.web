@@ -1,0 +1,23 @@
+# Railway / web-app image — runs the FastAPI teacher portal + dashboard + live
+# relay (proctor_server.py). This is SEPARATE from ./Dockerfile, which is the
+# Pipecat Cloud image that runs the bot (bot.py) for Cekura stress tests.
+#
+# Built by Railway via server/railway.json (builder=DOCKERFILE, this path).
+FROM dailyco/pipecat-base:latest
+
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+WORKDIR /app
+
+# Install locked deps first (fastapi/uvicorn/starlette come transitively via
+# pipecat-ai[runner]; pymupdf, anthropic, etc. are explicit). Cached unless the
+# lockfile changes.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-install-project --no-dev
+
+# App code (static/, *.py, *.json). .dockerignore keeps secrets/junk out.
+COPY . .
+
+# proctor_server.py binds 0.0.0.0 and honors $PORT (Railway injects it).
+ENTRYPOINT []
+CMD ["uv", "run", "proctor_server.py"]

@@ -29,6 +29,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -112,36 +113,83 @@ async def generate_labeled(n_per_class: int) -> list[dict[str, Any]]:
 CEKURA_BASE = "https://api.cekura.ai/test_framework"
 
 
-async def labeled_from_cekura(run_id: int, http: aiohttp.ClientSession) -> list[dict[str, Any]]:
-    """Pull a Cekura run's per-scenario transcripts and label each by persona.
+# Cekura labels the simulated student (the persona we authored) as the "Testing
+# Agent"; our proctor is the "Main Agent". The student's spoken answers are the
+# Testing-Agent turns. We strip Cekura's connectivity-probe filler ("are you
+# still there?", "hello?") so it doesn't pollute the detector input.
+_STUDENT_ROLES = {"testing agent", "user", "student", "human", "caller"}
+_FILLER = re.compile(r"^\s*(hello|hi|hey|are you (still )?there\??|can you hear me\??)[\s.?!]*$", re.I)
 
-    Ground truth comes from the scenario name/metadata: scenarios we created
-    with 'cheat' in the name are AI-scripted students (label 1), 'honest' are
-    label 0. The student (user) turns are concatenated as the answer text.
-    """
+
+def _label_for(scenario_name: str) -> int:
+    """Ground truth from the scenario name we authored: cheat/scripted = 1."""
+    n = (scenario_name or "").lower()
+    return 1 if ("cheat" in n or "scripted" in n) else 0
+
+
+def student_text_from_transcript(transcript_obj: list[dict[str, Any]]) -> str:
+    """Concatenate the simulated student's turns from a Cekura transcript_object."""
+    turns = []
+    for t in transcript_obj or []:
+        if (t.get("role") or "").strip().lower() in _STUDENT_ROLES:
+            c = (t.get("content") or "").strip()
+            if c and not _FILLER.match(c):
+                turns.append(c)
+    return " ".join(turns).strip()
+
+
+async def fetch_run_subruns(run_id: int, http: aiohttp.ClientSession) -> list[dict[str, Any]]:
+    """Return [{id, scenario_name}] for each sub-run of a Cekura run."""
     key = os.environ["CEKURA_API_KEY"]
     headers = {"X-CEKURA-API-KEY": key}
-    url = f"{CEKURA_BASE}/v1/runs/?ids={run_id}"
-    async with http.get(url, headers=headers, timeout=30) as resp:
-        resp.raise_for_status()
-        data = await resp.json()
-
-    samples: list[dict[str, Any]] = []
+    async with http.get(f"{CEKURA_BASE}/v1/runs/?ids={run_id}", headers=headers, timeout=30) as r:
+        r.raise_for_status()
+        data = await r.json()
+    out, seen = [], set()
     runs = data.get("results", data if isinstance(data, list) else data.get("runs", []))
     for run in runs:
         for sub in run.get("runs", [run]):
-            name = (sub.get("scenario_name") or "").lower()
-            label = 1 if "cheat" in name or "scripted" in name or "ai" in name else 0
-            transcript = sub.get("transcript") or sub.get("transcript_data") or []
-            student_text = " ".join(
-                t.get("content", "")
-                for t in transcript
-                if t.get("role") in ("user", "student", "human")
-            ).strip()
-            if student_text:
-                samples.append(
-                    {"text": student_text, "label": label, "source": f"cekura:{name}"}
-                )
+            sid = sub.get("id")
+            # The list endpoint can echo a sub-run more than once (parent wrapper
+            # + child); dedupe by id so a scenario isn't scored twice.
+            if sid is None or sid in seen:
+                continue
+            seen.add(sid)
+            out.append({"id": sid, "scenario_name": sub.get("scenario_name") or ""})
+    return out
+
+
+async def fetch_subrun_detail(sub_run_id: int, http: aiohttp.ClientSession) -> dict[str, Any]:
+    """Per-sub-run detail: carries transcript_object + voice_recording_url."""
+    key = os.environ["CEKURA_API_KEY"]
+    headers = {"X-CEKURA-API-KEY": key}
+    async with http.get(f"{CEKURA_BASE}/v1/runs/{sub_run_id}/", headers=headers, timeout=30) as r:
+        r.raise_for_status()
+        return await r.json()
+
+
+async def labeled_from_cekura(run_id: int, http: aiohttp.ClientSession) -> list[dict[str, Any]]:
+    """Pull a Cekura run's per-scenario transcripts and label each by persona.
+
+    The run LIST endpoint omits transcripts; the per-sub-run DETAIL endpoint
+    carries `transcript_object`. So we expand each sub-run and read its detail.
+    Ground truth comes from the scenario name (cheat/scripted -> 1, else 0).
+    """
+    subruns = await fetch_run_subruns(run_id, http)
+    samples: list[dict[str, Any]] = []
+    for sub in subruns:
+        if not sub.get("id"):
+            continue
+        detail = await fetch_subrun_detail(sub["id"], http)
+        transcript = detail.get("transcript_object") or detail.get("cekura_transcript_json") or []
+        student_text = student_text_from_transcript(transcript)
+        name = sub["scenario_name"].lower()
+        if student_text:
+            samples.append(
+                {"text": student_text, "label": _label_for(name), "source": f"cekura:{name}"}
+            )
+        else:
+            logger.warning(f"Cekura sub-run {sub['id']} ({name}) had no student speech — skipped.")
     logger.info(f"Pulled {len(samples)} labeled samples from Cekura run {run_id}")
     return samples
 

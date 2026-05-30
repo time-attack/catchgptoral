@@ -5,9 +5,8 @@
 #
 import asyncio
 import json
-import sys
-
 import os
+import sys
 
 import aiohttp
 from aiortc import RTCPeerConnection, RTCSessionDescription
@@ -43,7 +42,7 @@ async def wait_ice(pc):
 
     try:
         await asyncio.wait_for(fut, timeout=4)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         pass
 
 

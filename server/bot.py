@@ -35,15 +35,15 @@ from exam_store import create_session, get_session
 
 load_dotenv(override=True)
 
+# Short by design: this is ONLY the fallback exam for the Cekura/cloud stress
+# test (real student exams carry the teacher's own questions). Fewer questions =
+# a much faster stress test, with no effect on real exams.
 DEFAULT_EXAM = {
     "title": "General Knowledge Oral Exam",
     "questions": [
         "In your own words, explain a topic you studied recently and why it matters.",
         "What is the single most important concept from that topic, and why?",
-        "Explain a key term from the material as if teaching it to a classmate.",
-        "How does one idea you learned connect to or depend on another?",
         "Give a real-world example or application of something you learned.",
-        "What part of the material did you find most challenging, and why?",
     ],
 }
 
@@ -102,7 +102,9 @@ async def bot(runner_args: RunnerArguments):
         logger.error(f"Unsupported runner arguments type: {type(runner_args)}")
         return
 
-    await run_bot(transport, session)
+    # Cloud / Cekura path: no "Done Speaking" button exists, so the bot advances
+    # autonomously once the student answers and goes quiet.
+    await run_bot(transport, session, auto_advance=True)
 
 
 if __name__ == "__main__":
