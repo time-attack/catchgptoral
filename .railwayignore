@@ -1,0 +1,10 @@
+.git
+.gstack
+.context
+server/.venv
+server/__pycache__
+server/.ruff_cache
+**/__pycache__
+*.pyc
+server/.env
+server/Dockerfile
