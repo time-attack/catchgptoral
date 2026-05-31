@@ -26,7 +26,7 @@ import aiohttp
 import fitz  # PyMuPDF
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from loguru import logger
 from pipecat.runner.types import SmallWebRTCRunnerArguments
@@ -122,10 +122,38 @@ def _server_ice_servers() -> list[IceServer]:
 
 _webrtc_handler = SmallWebRTCRequestHandler(ice_servers=_server_ice_servers())
 
+# One active WebRTC attempt per exam session — retries must not stack bots.
+_SESSION_PC_IDS: dict[str, str] = {}
+_SESSION_BOT_TASKS: dict[str, asyncio.Task] = {}
+
+
+async def _teardown_student_webrtc(session_id: str) -> None:
+    """Close a prior offer/bot for this session so retries don't exhaust Railway."""
+    pc_id = _SESSION_PC_IDS.pop(session_id, None)
+    if pc_id:
+        conn = _webrtc_handler._pcs_map.pop(pc_id, None)
+        if conn is not None:
+            try:
+                await conn.disconnect()
+            except Exception as e:  # noqa: BLE001
+                logger.debug(f"disconnect pc {pc_id}: {e}")
+
+    task = _SESSION_BOT_TASKS.pop(session_id, None)
+    if task is not None and not task.done():
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    CONTROLLERS.pop(session_id, None)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
+    for sid in list(_SESSION_BOT_TASKS):
+        await _teardown_student_webrtc(sid)
     await _webrtc_handler.close()
 
 
@@ -283,7 +311,7 @@ def _extract_pdf_text(raw: bytes) -> str:
 
 
 @app.post("/api/offer")
-async def offer(request: SmallWebRTCRequest, background_tasks: BackgroundTasks):
+async def offer(request: SmallWebRTCRequest):
     """WebRTC signaling. The session_id arrives in request_data and is threaded
     to the bot via runner_args.body so it loads the right exam."""
     request_data = request.request_data or {}
@@ -291,18 +319,32 @@ async def offer(request: SmallWebRTCRequest, background_tasks: BackgroundTasks):
     if not session_id or get_session(session_id) is None:
         raise HTTPException(404, f"Unknown exam session_id: {session_id!r}")
 
+    await _teardown_student_webrtc(session_id)
+
     async def webrtc_connection_callback(connection: SmallWebRTCConnection):
         runner_args = SmallWebRTCRunnerArguments(
             webrtc_connection=connection,
             body={"session_id": session_id},
             session_id=session_id,
         )
-        background_tasks.add_task(bot, runner_args)
+
+        async def run_bot_task() -> None:
+            try:
+                await bot(runner_args)
+            except asyncio.CancelledError:
+                logger.info(f"Bot task cancelled for session {session_id}")
+                raise
+            finally:
+                _SESSION_BOT_TASKS.pop(session_id, None)
+
+        _SESSION_BOT_TASKS[session_id] = asyncio.create_task(run_bot_task())
 
     answer = await _webrtc_handler.handle_web_request(
         request=request,
         webrtc_connection_callback=webrtc_connection_callback,
     )
+    if answer and answer.get("pc_id"):
+        _SESSION_PC_IDS[session_id] = answer["pc_id"]
     return answer
 
 

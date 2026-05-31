@@ -396,6 +396,7 @@ const CIRC = 2 * Math.PI * 78; // 490.x
 let SESSION = null;
 let QUESTIONS = [];
 let pc = null;
+let localStream = null;
 let evtSource = null;
 
 // Student-link mode: /take/{test_id} loads a teacher's test and goes straight to
@@ -486,6 +487,7 @@ async function startExam() {
     openEventStream();
     await connectWebRTC();
   } catch (e) {
+    cleanupWebRTC();
     $("step-live").classList.add("hidden");
     $("step-review").classList.remove("hidden");
     $("startErr").textContent = "Could not start: " + e.message;
@@ -495,7 +497,40 @@ async function startExam() {
 }
 
 async function connectWebRTC() {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  cleanupWebRTC();
+  let lastErr;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      if (attempt > 1) setLive(false, "Retrying connection…");
+      await connectWebRTCOnce();
+      return;
+    } catch (e) {
+      lastErr = e;
+      cleanupWebRTC();
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  throw lastErr;
+}
+
+function cleanupWebRTC() {
+  if (pc) {
+    try {
+      pc.onicecandidate = null;
+      pc.ontrack = null;
+      pc.onconnectionstatechange = null;
+      pc.close();
+    } catch (_) {}
+    pc = null;
+  }
+  if (localStream) {
+    localStream.getTracks().forEach((t) => t.stop());
+    localStream = null;
+  }
+}
+
+async function connectWebRTCOnce() {
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   pc = new RTCPeerConnection({ iceServers: await loadIceServers() });
   let remotePcId = null;
   const queuedCandidates = [];
@@ -506,7 +541,7 @@ async function connectWebRTC() {
   };
   // addTrack creates a sendrecv transceiver — the bot returns its audio on the
   // same m-line, so we both send the mic and receive the bot's voice.
-  stream.getTracks().forEach(t => pc.addTrack(t, stream));
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
   pc.ontrack = (e) => { $("botAudio").srcObject = e.streams[0]; };
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === "connected") setLive(true, "Connected");
@@ -591,7 +626,7 @@ function waitForIce(pc) {
     if (pc.iceGatheringState === "complete") return resolve();
     const check = () => { if (pc.iceGatheringState === "complete") { pc.removeEventListener("icegatheringstatechange", check); resolve(); } };
     pc.addEventListener("icegatheringstatechange", check);
-    setTimeout(resolve, 2500); // fall back to whatever we have
+    setTimeout(resolve, 6000); // TURN relay candidates can take a few seconds
   });
 }
 
@@ -601,7 +636,7 @@ function waitForConnection(pc) {
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error("WebRTC connection timed out. The deployed app needs TURN credentials for SmallWebRTC."));
-    }, 30000);
+    }, 45000);
     const cleanup = () => {
       clearTimeout(timeout);
       pc.removeEventListener("connectionstatechange", check);
@@ -619,7 +654,7 @@ function waitForConnection(pc) {
   });
 }
 
-$("endBtn").onclick = () => { if (pc) pc.close(); fetchReportAndShow(); };
+$("endBtn").onclick = () => { cleanupWebRTC(); fetchReportAndShow(); };
 
 // ---------- Live dashboard ----------
 function buildLiveScaffold() {

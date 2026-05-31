@@ -315,11 +315,12 @@ class BotStateProbe(FrameProcessor):
 
 
 async def _relay_forwarder(session: ProctorSession, http: aiohttp.ClientSession) -> asyncio.Task | None:
-    """Stream this session's LIVE events out to the public relay so the teacher
-    dashboard can watch the cloud call in real time (Cekura only delivers the
-    transcript after the call ends). No-op unless LIVE_RELAY_URL is set, so the
-    local browser path is unaffected.
+    """Stream live events to the relay when the bot runs off-box (Pipecat Cloud).
+
+    The Railway student bot shares the web process with /events SSE, so HTTP
+    relay would loop back to itself and stack extra tasks on every retry.
     """
+    return None
     url = os.getenv("LIVE_RELAY_URL")
     if not url:
         return None
@@ -550,10 +551,30 @@ async def run_bot(transport: BaseTransport, session: ProctorSession, auto_advanc
     # teacher dashboard as it happens. Started before connect so it captures the
     # opening "connected"/question events. No-op unless LIVE_RELAY_URL is set.
     relay_task = await _relay_forwarder(session, http_session)
+    connected = asyncio.Event()
+    connect_timeout = float(os.getenv("WEBRTC_CONNECT_TIMEOUT_SECS", "55"))
+
+    async def _connect_watchdog() -> None:
+        try:
+            await asyncio.wait_for(connected.wait(), timeout=connect_timeout)
+        except TimeoutError:
+            logger.warning(
+                f"Session {session.session_id}: WebRTC never connected after "
+                f"{connect_timeout}s; releasing bot resources"
+            )
+            CONTROLLERS.pop(session.session_id, None)
+            if relay_task is not None:
+                relay_task.cancel()
+            await http_session.close()
+            await worker.cancel()
+
+    watchdog_task = asyncio.create_task(_connect_watchdog())
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info(f"Student connected to session {session.session_id}")
+        connected.set()
+        watchdog_task.cancel()
         session.status = "in_progress"
         session.emit("connected", {"title": session.title, "total": len(session.questions)})
         await controller.start()
@@ -561,6 +582,8 @@ async def run_bot(transport: BaseTransport, session: ProctorSession, auto_advanc
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
         logger.info(f"Student disconnected from session {session.session_id}")
+        connected.set()
+        watchdog_task.cancel()
         CONTROLLERS.pop(session.session_id, None)
         if relay_task is not None:
             relay_task.cancel()
